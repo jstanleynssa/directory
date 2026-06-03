@@ -24,48 +24,17 @@ function admin() {
 
 // Fetch all certified members WITH a bio (the directory inclusion gate).
 async function fetchDirectoryMembers() {
-  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-
-  // ── DIAGNOSTIC (unconditional) ──────────────────────────────────────────
-  console.error('=== SUPABASE DIAG ===')
-  console.error('URL length:', rawUrl.length)
-  console.error('URL JSON:', JSON.stringify(rawUrl))   // reveals hidden \n, spaces, quotes
-  console.error('KEY length:', rawKey.length)
-  console.error('KEY starts:', rawKey.slice(0, 6), 'ends:', rawKey.slice(-4))
-  console.error('KEY has whitespace:', /\s/.test(rawKey))
-  // Raw REST fetch — bypasses the Supabase JS client to isolate network vs client
-  try {
-    const testUrl = `${rawUrl.trim()}/rest/v1/members?select=email&limit=1`
-    const r = await fetch(testUrl, {
-      headers: { apikey: rawKey.trim(), Authorization: `Bearer ${rawKey.trim()}` },
-    })
-    console.error('RAW FETCH status:', r.status)
-    console.error('RAW FETCH body:', (await r.text()).slice(0, 200))
-  } catch (e) {
-    console.error('RAW FETCH threw:', e?.message, '| cause:', JSON.stringify(e?.cause, Object.getOwnPropertyNames(e?.cause || {})))
-  }
-  console.error('=== END DIAG ===')
-  // ────────────────────────────────────────────────────────────────────────
-
   const supabase = admin()
   let all = []
   let from = 0
   while (true) {
-    let data, error
-    try {
-      ({ data, error } = await supabase
-        .from('members')
-        .select('id, email, first_name, last_name, job_title, company, address, city, state, zip, phone, mobile_phone, website, linkedin_url, bio, profile_photo, nssa_certified, irmaa_certified, nssa_number, irmaa_number, directory_page_title, directory_h1, is_active')
-        .or('nssa_certified.eq.true,irmaa_certified.eq.true')
-        .order('last_name', { ascending: true })
-        .range(from, from + 999))
-    } catch (thrown) {
-      console.error('Directory fetch THREW:', thrown?.message)
-      console.error('  cause:', JSON.stringify(thrown?.cause, Object.getOwnPropertyNames(thrown?.cause || {})))
-      throw thrown
-    }
-    if (error) { console.error('Directory fetch error (returned):', error.message); break }
+    const { data, error } = await supabase
+      .from('members')
+      .select('id, email, first_name, last_name, job_title, company, address, city, state, zip, phone, mobile_phone, website, linkedin_url, bio, profile_photo, nssa_certified, irmaa_certified, nssa_number, irmaa_number, directory_page_title, directory_h1, is_active')
+      .or('nssa_certified.eq.true,irmaa_certified.eq.true')
+      .order('last_name', { ascending: true })
+      .range(from, from + 999)
+    if (error) { console.error('Directory fetch error:', error.message); break }
     if (!data || data.length === 0) break
     all = all.concat(data)
     if (data.length < 1000) break
