@@ -5,7 +5,7 @@
 import Head from 'next/head'
 import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { buildSlugIndex } from '../lib/slug'
+import { buildSlugIndex, stateToken } from '../lib/slug'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
@@ -13,6 +13,49 @@ const GRAY  = { text: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb', dark: '#1f293
 const TAN    = '#b3a584'
 const SITE   = 'https://directory.nssapros.com'
 const ROOT   = 'https://nssapros.com'
+
+// Product/training pages we want to pass internal link equity to.
+const NSSA_COURSE  = 'https://www.nssapros.com/social-security-training'
+const IRMAA_COURSE = 'https://www.nssapros.com/irmaa-medicare-training-course'
+
+// Varied anchor phrasings per cert (avoids identical anchors across ~700 pages).
+const NSSA_ANCHORS = [
+  'National Social Security Advisor (NSSA®) certification',
+  'NSSA® Social Security certification',
+  'National Social Security Advisor program',
+  'NSSA® designation in Social Security planning',
+]
+const IRMAA_ANCHORS = [
+  'IRMAA Certified Planner (IRMAACP™) program',
+  'IRMAACP™ Medicare & IRMAA certification',
+  'IRMAA Certified Planner designation',
+  'IRMAACP™ training in Medicare planning',
+]
+// Sentence frames; {NSSA} / {IRMAA} are replaced with the linked anchors.
+// {NAME} with the advisor's name. Picked deterministically per advisor.
+const BOTH_FRAMES = [
+  'As a certified professional, {NAME} has completed the {NSSA} and the {IRMAA}, bringing specialized expertise in Social Security and Medicare planning to clients.',
+  '{NAME} holds both the {NSSA} and the {IRMAA}, reflecting advanced training in retirement income and Medicare cost planning.',
+  'Having earned the {NSSA} and the {IRMAA}, {NAME} is equipped to guide clients through complex Social Security and Medicare decisions.',
+]
+const NSSA_FRAMES = [
+  '{NAME} has earned the {NSSA}, demonstrating advanced expertise in Social Security claiming strategies.',
+  'As a holder of the {NSSA}, {NAME} brings specialized knowledge of Social Security planning to every client relationship.',
+]
+const IRMAA_FRAMES = [
+  '{NAME} has completed the {IRMAA}, with focused expertise in Medicare and income-related premium planning.',
+  'As an {IRMAA} holder, {NAME} helps clients navigate Medicare costs and IRMAA surcharges with confidence.',
+]
+
+// Stable per-advisor index from a string (email), so phrasing is varied across
+// advisors but constant for a given advisor across rebuilds.
+function stableIndex(seed, mod) {
+  let h = 0
+  const s = String(seed || '')
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h % mod
+}
+
 
 // ── Build-time data ─────────────────────────────────────────────────────────
 function admin() {
@@ -106,6 +149,15 @@ function websiteHref(url) {
   return /^https?:\/\//.test(url) ? url : `https://${url}`
 }
 
+// Truncate to a max length on a word boundary, adding an ellipsis if cut.
+function truncateAtWord(str, max) {
+  const s = (str || '').trim()
+  if (s.length <= max) return s
+  const cut = s.slice(0, max)
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\s]+$/, '') + '…'
+}
+
 // ── Contact form (client) ───────────────────────────────────────────────────
 function ContactForm({ advisorName, advisorEmail, slug }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
@@ -196,10 +248,48 @@ export default function AdvisorProfile({ member, slug }) {
   // SEO title/H1 — use stored directory fields when present, else sensible defaults.
   const pageTitle = member.directory_page_title
     || `${name}${member.city ? `, ${member.city}` : ''}${member.state ? `, ${member.state}` : ''} — NSSA® & IRMAACP™ Certified Advisor`
-  const h1 = member.directory_h1 || 'NSSA® and IRMAA Certified Planner™'
+  // Natural, human-readable H1 fallback (avoids keyword-stuffed phrasing).
+  const h1 = member.directory_h1
+    || `${name} — ${[hasNssa && 'NSSA®', hasIrmaa && 'IRMAACP™'].filter(Boolean).join(' & ')} Certified Advisor${member.city ? ` in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''}`
   const metaDesc = paragraphs[0]
-    ? paragraphs[0].slice(0, 155)
+    ? truncateAtWord(paragraphs[0], 155)
     : `${name} is an NSSA® and IRMAACP™ certified advisor${member.city ? ` in ${member.city}, ${member.state}` : ''}.`
+
+  // ── Credibility line: contextual, followed links to the training pages ──
+  // Deterministic per advisor (stable across rebuilds), varied across advisors.
+  const seed = member.email || slug
+  const nssaAnchor = NSSA_ANCHORS[stableIndex(seed + 'n', NSSA_ANCHORS.length)]
+  const irmaaAnchor = IRMAA_ANCHORS[stableIndex(seed + 'i', IRMAA_ANCHORS.length)]
+  const linkStyle = { color: NSSA.medium, textDecoration: 'underline' }
+  const nssaLink = <a key="nl" href={NSSA_COURSE} style={linkStyle}>{nssaAnchor}</a>
+  const irmaaLink = <a key="il" href={IRMAA_COURSE} style={{ ...linkStyle, color: IRMAA.medium }}>{irmaaAnchor}</a>
+
+  let credFrame = null
+  if (hasNssa && hasIrmaa) credFrame = BOTH_FRAMES[stableIndex(seed, BOTH_FRAMES.length)]
+  else if (hasNssa)        credFrame = NSSA_FRAMES[stableIndex(seed, NSSA_FRAMES.length)]
+  else if (hasIrmaa)       credFrame = IRMAA_FRAMES[stableIndex(seed, IRMAA_FRAMES.length)]
+
+  // Split the chosen frame on tokens and interleave the linked anchors.
+  const credLine = credFrame ? (
+    <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>
+      {credFrame.split(/(\{NAME\}|\{NSSA\}|\{IRMAA\})/).map((part, i) => {
+        if (part === '{NAME}') return <span key={i}>{name}</span>
+        if (part === '{NSSA}') return <span key={i}>{nssaLink}</span>
+        if (part === '{IRMAA}') return <span key={i}>{irmaaLink}</span>
+        return <span key={i}>{part}</span>
+      })}
+    </p>
+  ) : null
+
+  // Descriptive alt for the headshot — frames it as a photo description
+  // (accessibility best practice) while keeping name/role/company/location
+  // for image-search discoverability.
+  const photoAlt = [
+    `A professional headshot of ${name}`,
+    member.job_title ? `, ${member.job_title}` : '',
+    member.company ? ` of ${member.company}` : '',
+    (member.city && member.state) ? ` in ${member.city}, ${stateToken(member.state).toUpperCase()}` : '',
+  ].join('')
 
   // Schema.org Person structured data
   const certs = []
@@ -223,8 +313,30 @@ export default function AdvisorProfile({ member, slug }) {
       addressCountry: 'US',
     } : undefined,
     hasCredential: certs.map(c => ({ '@type': 'EducationalOccupationalCredential', name: c })),
-    sameAs: [member.linkedin_url, web].filter(Boolean),
+    sameAs: [member.linkedin_url ? websiteHref(member.linkedin_url) : null, web].filter(Boolean),
   }
+
+  // LocalBusiness (FinancialService) schema — only when we have a real address.
+  // Pairs with Person to support local "advisor near me" rich results.
+  const hasAddress = !!(member.address && (member.city || member.state))
+  const localBusinessSchema = hasAddress ? {
+    '@context': 'https://schema.org',
+    '@type': 'FinancialService',
+    name: member.company || name,
+    image: member.profile_photo || undefined,
+    url: canonical,
+    telephone: phone || undefined,
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: member.address,
+      addressLocality: member.city || undefined,
+      addressRegion: member.state || undefined,
+      postalCode: member.zip || undefined,
+      addressCountry: 'US',
+    },
+    employee: { '@type': 'Person', name, jobTitle: member.job_title || undefined },
+    sameAs: [member.linkedin_url ? websiteHref(member.linkedin_url) : null, web].filter(Boolean),
+  } : null
 
   const pillBtn = {
     display: 'block', textAlign: 'center', padding: '14px 24px', marginBottom: '12px',
@@ -240,15 +352,23 @@ export default function AdvisorProfile({ member, slug }) {
         <meta name="description" content={metaDesc} />
         <link rel="canonical" href={canonical} />
         <meta property="og:type" content="profile" />
+        <meta property="og:site_name" content="NSSA® Advisor Directory" />
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={metaDesc} />
         <meta property="og:url" content={canonical} />
         {member.profile_photo && <meta property="og:image" content={member.profile_photo} />}
+        {member.profile_photo && <meta property="og:image:alt" content={photoAlt} />}
         <meta name="twitter:card" content="summary_large_image" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
         />
+        {localBusinessSchema && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
+          />
+        )}
       </Head>
 
       <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', color: GRAY.dark }}>
@@ -281,7 +401,7 @@ export default function AdvisorProfile({ member, slug }) {
               {/* Photo */}
               <div>
                 {member.profile_photo
-                  ? <img src={member.profile_photo} alt={`${name} — ${member.job_title || 'Certified Advisor'}`} style={{ width: '100%', borderRadius: '4px', display: 'block' }} />
+                  ? <img src={member.profile_photo} alt={photoAlt} width="280" height="294" loading="eager" fetchpriority="high" style={{ width: '100%', height: 'auto', aspectRatio: '280 / 294', objectFit: 'cover', borderRadius: '4px', display: 'block' }} />
                   : <div style={{ width: '100%', aspectRatio: '1 / 1.15', background: NSSA.dark, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '64px', fontWeight: 700 }}>{(fname[0] || '?')}</div>}
               </div>
 
@@ -298,16 +418,17 @@ export default function AdvisorProfile({ member, slug }) {
 
                 {/* Cert badges */}
                 <div style={{ display: 'flex', gap: '14px' }}>
-                  {hasNssa && <img src="/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} style={{ height: '92px', width: 'auto' }} />}
-                  {hasIrmaa && <img src="/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} style={{ height: '92px', width: 'auto' }} />}
+                  {hasNssa && <img src="/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto' }} />}
+                  {hasIrmaa && <img src="/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto' }} />}
                 </div>
               </div>
 
               {/* Action buttons */}
               <div>
-                {web && <a href={web} target="_blank" rel="noopener noreferrer" style={pillBtn}>Visit Website</a>}
+                {web && <a href={web} target="_blank" rel="nofollow noopener noreferrer" style={pillBtn}>Visit Website</a>}
                 {phone && <a href={`tel:${phone.replace(/[^0-9+]/g, '')}`} style={pillBtn}>Call {fname}</a>}
                 {member.email && <a href={`mailto:${member.email}`} style={pillBtn}>Email {fname}</a>}
+                {member.linkedin_url && <a href={websiteHref(member.linkedin_url)} target="_blank" rel="nofollow noopener noreferrer" style={pillBtn}>Connect on LinkedIn</a>}
               </div>
             </div>
           </div>
@@ -325,6 +446,7 @@ export default function AdvisorProfile({ member, slug }) {
               {paragraphs.map((p, i) => (
                 <p key={i} style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>{p}</p>
               ))}
+              {credLine}
             </div>
 
             <ContactForm advisorName={name} advisorEmail={member.email} slug={slug} />
