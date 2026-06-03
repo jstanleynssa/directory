@@ -28,13 +28,23 @@ async function fetchDirectoryMembers() {
   let all = []
   let from = 0
   while (true) {
-    const { data, error } = await supabase
-      .from('members')
-      .select('id, email, first_name, last_name, job_title, company, address, city, state, zip, phone, mobile_phone, website, linkedin_url, bio, profile_photo, nssa_certified, irmaa_certified, nssa_number, irmaa_number, directory_page_title, directory_h1, is_active')
-      .or('nssa_certified.eq.true,irmaa_certified.eq.true')
-      .order('last_name', { ascending: true })
-      .range(from, from + 999)
-    if (error) { console.error('Directory fetch error:', error.message); break }
+    let data, error
+    try {
+      ({ data, error } = await supabase
+        .from('members')
+        .select('id, email, first_name, last_name, job_title, company, address, city, state, zip, phone, mobile_phone, website, linkedin_url, bio, profile_photo, nssa_certified, irmaa_certified, nssa_number, irmaa_number, directory_page_title, directory_h1, is_active')
+        .or('nssa_certified.eq.true,irmaa_certified.eq.true')
+        .order('last_name', { ascending: true })
+        .range(from, from + 999))
+    } catch (thrown) {
+      // Network-level failure (DNS/TLS/connection) throws rather than returning an error object.
+      console.error('Directory fetch THREW:', thrown?.message)
+      console.error('  cause:', JSON.stringify(thrown?.cause, Object.getOwnPropertyNames(thrown?.cause || {})))
+      console.error('  url env present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL, 'len:', (process.env.NEXT_PUBLIC_SUPABASE_URL || '').length)
+      console.error('  key env present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY, 'len:', (process.env.SUPABASE_SERVICE_ROLE_KEY || '').length)
+      throw thrown
+    }
+    if (error) { console.error('Directory fetch error (returned):', error.message); break }
     if (!data || data.length === 0) break
     all = all.concat(data)
     if (data.length < 1000) break
@@ -60,8 +70,7 @@ export async function getStaticPaths() {
   const POC_EMAILS = [
     'jason@dancing-tree.org',     // your test profile (dual cert)
     'jstanley@nssapros.com',      // admin / dual cert
-    // add a few more real test advisors here as needed, e.g.:
-    // 'joy@jkinginsurance.com',  // single-cert + messy title example
+    'joy@ajoytoenroll.com',       // Joy Cheney — dual cert, real bio
   ]
   const paths = POC_EMAILS
     .filter(email => byEmail.has(email))
