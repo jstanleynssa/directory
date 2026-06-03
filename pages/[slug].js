@@ -24,6 +24,30 @@ function admin() {
 
 // Fetch all certified members WITH a bio (the directory inclusion gate).
 async function fetchDirectoryMembers() {
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+  // ── DIAGNOSTIC (unconditional) ──────────────────────────────────────────
+  console.error('=== SUPABASE DIAG ===')
+  console.error('URL length:', rawUrl.length)
+  console.error('URL JSON:', JSON.stringify(rawUrl))   // reveals hidden \n, spaces, quotes
+  console.error('KEY length:', rawKey.length)
+  console.error('KEY starts:', rawKey.slice(0, 6), 'ends:', rawKey.slice(-4))
+  console.error('KEY has whitespace:', /\s/.test(rawKey))
+  // Raw REST fetch — bypasses the Supabase JS client to isolate network vs client
+  try {
+    const testUrl = `${rawUrl.trim()}/rest/v1/members?select=email&limit=1`
+    const r = await fetch(testUrl, {
+      headers: { apikey: rawKey.trim(), Authorization: `Bearer ${rawKey.trim()}` },
+    })
+    console.error('RAW FETCH status:', r.status)
+    console.error('RAW FETCH body:', (await r.text()).slice(0, 200))
+  } catch (e) {
+    console.error('RAW FETCH threw:', e?.message, '| cause:', JSON.stringify(e?.cause, Object.getOwnPropertyNames(e?.cause || {})))
+  }
+  console.error('=== END DIAG ===')
+  // ────────────────────────────────────────────────────────────────────────
+
   const supabase = admin()
   let all = []
   let from = 0
@@ -37,11 +61,8 @@ async function fetchDirectoryMembers() {
         .order('last_name', { ascending: true })
         .range(from, from + 999))
     } catch (thrown) {
-      // Network-level failure (DNS/TLS/connection) throws rather than returning an error object.
       console.error('Directory fetch THREW:', thrown?.message)
       console.error('  cause:', JSON.stringify(thrown?.cause, Object.getOwnPropertyNames(thrown?.cause || {})))
-      console.error('  url env present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL, 'len:', (process.env.NEXT_PUBLIC_SUPABASE_URL || '').length)
-      console.error('  key env present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY, 'len:', (process.env.SUPABASE_SERVICE_ROLE_KEY || '').length)
       throw thrown
     }
     if (error) { console.error('Directory fetch error (returned):', error.message); break }
