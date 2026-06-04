@@ -99,15 +99,14 @@ export default function DirectoryIndex({ advisors, stateList }) {
       </Head>
 
       <style>{`
-        .dir-grid { display: grid; grid-template-columns: 320px 1fr; gap: 2rem; align-items: start; }
-        .map-wrap { position: sticky; top: 1rem; background: ${GRAY.bg}; border-radius: 12px; padding: 1rem; }
+        .dir-top { display: grid; grid-template-columns: 320px 1fr; gap: 2rem; align-items: stretch; margin-bottom: 2.5rem; }
+        .map-wrap { background: ${GRAY.bg}; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: center; }
         .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
         .filter-input { width: 100%; padding: 11px 13px; font-size: 15px; border: 1px solid ${GRAY.border}; border-radius: 8px; box-sizing: border-box; font-family: inherit; background: white; outline: none; }
         .filter-label { display:block; font-size: 13px; font-weight: 600; color: ${GRAY.dark}; margin-bottom: 6px; font-family: "Poppins", system-ui, sans-serif; }
         .rsm-geography:focus { outline: none; }
         @media (max-width: 1024px) {
-          .dir-grid { grid-template-columns: 1fr; }
-          .map-wrap { position: static; }
+          .dir-top { grid-template-columns: 1fr; }
           .cards { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 640px) {
@@ -149,72 +148,76 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
         {/* Main */}
         <section style={{ padding: '2rem', flex: 1 }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto' }} className="dir-grid">
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
 
-            {/* Left: filters + map */}
-            <div>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="filter-label">Search by name, company, or city</label>
-                <input className="filter-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cheney, or Boston" />
-              </div>
+            {/* Top row: filters (left) + large map (right) */}
+            <div className="dir-top">
 
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="filter-label">State</label>
-                <select className="filter-input" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
-                  <option value="">All states</option>
-                  {stateList.map(([code, label]) => (
-                    <option key={code} value={code}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '1.25rem' }}>
-                <label className="filter-label">Designation</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[['', 'All'], ['nssa', 'NSSA®'], ['irmaa', 'IRMAACP™']].map(([val, label]) => (
-                    <button
-                      key={val}
-                      onClick={() => setDesignation(val)}
-                      style={{
-                        flex: 1, padding: '9px 6px', fontSize: '13px', fontWeight: 600,
-                        fontFamily: '"Poppins", system-ui, sans-serif', cursor: 'pointer',
-                        borderRadius: '8px', border: `1.5px solid ${designation === val ? NSSA.medium : GRAY.border}`,
-                        background: designation === val ? NSSA.medium : 'white',
-                        color: designation === val ? 'white' : GRAY.dark,
-                      }}
-                    >{label}</button>
-                  ))}
+              {/* Filters */}
+              <div>
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label className="filter-label">Search by name, company, or city</label>
+                  <input className="filter-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cheney, or Boston" />
                 </div>
-              </div>
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label className="filter-label">Near my ZIP code</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    className="filter-input"
-                    value={zip}
-                    onChange={e => setZip(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') applyZip() }}
-                    placeholder="ZIP"
-                    inputMode="numeric"
-                    style={{ flex: '0 0 90px' }}
-                  />
-                  <select className="filter-input" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ flex: 1 }}>
-                    {RADIUS_OPTIONS.map(r => <option key={r} value={r}>{r} miles</option>)}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label className="filter-label">State</label>
+                  <select className="filter-input" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
+                    <option value="">All states</option>
+                    {stateList.map(([code, label]) => (
+                      <option key={code} value={code}>{label}</option>
+                    ))}
                   </select>
-                  <button
-                    onClick={applyZip}
-                    disabled={zipLoading}
-                    style={{ flex: '0 0 auto', padding: '0 16px', fontSize: '14px', fontWeight: 600, fontFamily: '"Poppins", system-ui, sans-serif', cursor: 'pointer', borderRadius: '8px', border: 'none', background: IRMAA.dark, color: 'white' }}
-                  >{zipLoading ? '…' : 'Go'}</button>
                 </div>
-                {zipError && <p style={{ color: IRMAA.medium, fontSize: '13px', margin: '6px 0 0' }}>{zipError}</p>}
-                {origin && <button onClick={clearProximity} style={{ background: 'none', border: 'none', color: NSSA.medium, fontSize: '13px', cursor: 'pointer', padding: '6px 0 0', textDecoration: 'underline' }}>Clear ZIP filter</button>}
+
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <label className="filter-label">Designation</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {[['', 'All'], ['nssa', 'NSSA®'], ['irmaa', 'IRMAACP™']].map(([val, label]) => (
+                      <button
+                        key={val}
+                        onClick={() => setDesignation(val)}
+                        style={{
+                          flex: 1, padding: '9px 6px', fontSize: '13px', fontWeight: 600,
+                          fontFamily: '"Poppins", system-ui, sans-serif', cursor: 'pointer',
+                          borderRadius: '8px', border: `1.5px solid ${designation === val ? NSSA.medium : GRAY.border}`,
+                          background: designation === val ? NSSA.medium : 'white',
+                          color: designation === val ? 'white' : GRAY.dark,
+                        }}
+                      >{label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <label className="filter-label">Near my ZIP code</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      className="filter-input"
+                      value={zip}
+                      onChange={e => setZip(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') applyZip() }}
+                      placeholder="ZIP"
+                      inputMode="numeric"
+                      style={{ flex: '0 0 90px' }}
+                    />
+                    <select className="filter-input" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ flex: 1 }}>
+                      {RADIUS_OPTIONS.map(r => <option key={r} value={r}>{r} miles</option>)}
+                    </select>
+                    <button
+                      onClick={applyZip}
+                      disabled={zipLoading}
+                      style={{ flex: '0 0 auto', padding: '0 16px', fontSize: '14px', fontWeight: 600, fontFamily: '"Poppins", system-ui, sans-serif', cursor: 'pointer', borderRadius: '8px', border: 'none', background: IRMAA.dark, color: 'white' }}
+                    >{zipLoading ? '…' : 'Go'}</button>
+                  </div>
+                  {zipError && <p style={{ color: IRMAA.medium, fontSize: '13px', margin: '6px 0 0' }}>{zipError}</p>}
+                  {origin && <button onClick={clearProximity} style={{ background: 'none', border: 'none', color: NSSA.medium, fontSize: '13px', cursor: 'pointer', padding: '6px 0 0', textDecoration: 'underline' }}>Clear ZIP filter</button>}
+                </div>
               </div>
 
-              {/* Map */}
+              {/* Map (large, right of filters) */}
               <div className="map-wrap">
-                <ComposableMap projection="geoAlbersUsa" width={800} height={500} style={{ width: '100%', height: 'auto' }}>
+                <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
                   <Geographies geography={usTopo}>
                     {({ geographies }) =>
                       geographies.map(geo => (
@@ -236,13 +239,13 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     </Marker>
                   ))}
                 </ComposableMap>
-                <p style={{ fontSize: '12px', color: GRAY.text, textAlign: 'center', margin: '0.5rem 0 0' }}>
+                <p style={{ fontSize: '12px', color: GRAY.text, textAlign: 'center', margin: '0.75rem 0 0' }}>
                   {markers.length.toLocaleString()} advisor{markers.length === 1 ? '' : 's'} shown on map
                 </p>
               </div>
             </div>
 
-            {/* Right: results */}
+            {/* Results (full width, below) */}
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <h2 style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontSize: '1.3rem', fontWeight: 700, color: GRAY.dark, margin: 0 }}>
