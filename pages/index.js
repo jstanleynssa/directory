@@ -82,9 +82,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const [hovered, setHovered] = useState(null) // advisor under cursor (when map is zoomed)
   const [dismissing, setDismissing] = useState(false) // drives the fade-out animation
   const [zoomNudge, setZoomNudge] = useState(1) // user zoom-control multiplier on top of mapView.zoom
-  const [markersFading, setMarkersFading] = useState(false) // brief fade on designation change
   const dismissTimer = useRef(null)
-  const fadeTimer = useRef(null)
   const router = useRouter()
 
   // The map is "zoomed/interactive" when a state is selected OR a ZIP origin is set.
@@ -92,14 +90,6 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
   // Reset manual zoom whenever the fitted view changes (new state / ZIP / cleared).
   useEffect(() => { setZoomNudge(1) }, [stateFilter, origin])
-
-  // Brief fade-out/in of the map dots when the designation filter changes.
-  useEffect(() => {
-    setMarkersFading(true)
-    if (fadeTimer.current) clearTimeout(fadeTimer.current)
-    fadeTimer.current = setTimeout(() => { setMarkersFading(false); fadeTimer.current = null }, 220)
-    return () => { if (fadeTimer.current) clearTimeout(fadeTimer.current) }
-  }, [designation])
 
   // Show the hover badge, cancelling any pending fade-out.
   const showPreview = useCallback((advisor, x, y) => {
@@ -165,6 +155,40 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const markers = useMemo(
     () => filtered.filter(a => a.coords),
     [filtered]
+  )
+
+  // Map dots are filtered by everything EXCEPT designation, so switching
+  // designation only animates each dot's opacity (true differential cross-fade)
+  // rather than swapping the whole dot set. `passesDesignation` decides visibility.
+  const mapMarkers = useMemo(() => {
+    const q = name.trim().toLowerCase()
+    let list = advisors.filter(a => {
+      if (!a.coords) return false
+      if (stateFilter && a.stateCode !== stateFilter) return false
+      if (q) {
+        const hay = `${a.name} ${a.company || ''} ${a.city || ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    if (origin) {
+      list = list
+        .map(a => ({ ...a, distance: milesBetween(origin, a.coords) }))
+        .filter(a => a.distance <= radius)
+    }
+    return list
+  }, [advisors, name, stateFilter, origin, radius])
+
+  const passesDesignation = useCallback((a) => {
+    if (designation === 'nssa') return !!a.nssa
+    if (designation === 'irmaa') return !!a.irmaa
+    return true
+  }, [designation])
+
+  // Count actually visible on the map (passing designation), for the caption.
+  const visibleMapCount = useMemo(
+    () => mapMarkers.filter(passesDesignation).length,
+    [mapMarkers, passesDesignation]
   )
 
   const hasFilters = name || stateFilter || designation || origin
@@ -354,8 +378,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
                           })
                         }
                       </Geographies>
-                      <g style={{ opacity: markersFading ? 0 : 1, transition: 'opacity 0.2s ease-in-out' }}>
-                        {markers.map(a => (
+                      {mapMarkers.map(a => {
+                        const visible = passesDesignation(a)
+                        return (
                           <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
                             <circle
                               className="map-marker"
@@ -363,18 +388,22 @@ export default function DirectoryIndex({ advisors, stateList }) {
                               fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
                               stroke="white"
                               strokeWidth={1.2 / mapView.zoom ** 0.7}
-                              opacity={0.85}
-                              style={{ cursor: mapZoomed ? 'pointer' : 'default' }}
-                              onClick={mapZoomed ? () => router.push(`/${a.slug}`) : undefined}
-                              onMouseEnter={mapZoomed ? (e) => {
+                              style={{
+                                opacity: visible ? 0.85 : 0,
+                                transition: 'opacity 0.35s ease-in-out',
+                                pointerEvents: visible && mapZoomed ? 'auto' : 'none',
+                                cursor: mapZoomed ? 'pointer' : 'default',
+                              }}
+                              onClick={visible && mapZoomed ? () => router.push(`/${a.slug}`) : undefined}
+                              onMouseEnter={visible && mapZoomed ? (e) => {
                                 const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
                                 showPreview(a, e.clientX - rect.left, e.clientY - rect.top)
                               } : undefined}
-                              onMouseLeave={mapZoomed ? hidePreview : undefined}
+                              onMouseLeave={visible && mapZoomed ? hidePreview : undefined}
                             />
                           </Marker>
-                        ))}
-                      </g>
+                        )
+                      })}
                     </ZoomableGroup>
                   </ComposableMap>
 
@@ -410,7 +439,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     >
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         {hovered.advisor.photo
-                          ? <img src={hovered.advisor.photo} alt="" width="44" height="44" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          ? <><img src={hovered.advisor.photo} alt="" width="44" height="44" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} onError={(e) => { const fb = e.currentTarget.nextElementSibling; e.currentTarget.style.display = 'none'; if (fb) fb.style.display = 'flex' }} /><div style={{ display: 'none' }}><Silhouette size={44} /></div></>
                           : <Silhouette size={44} />}
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 700, fontSize: '14px', color: GRAY.dark, lineHeight: 1.2 }}>{hovered.advisor.name}</div>
@@ -426,7 +455,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7B4F9E', display: 'inline-block' }} />Both</span>
-                  <span>· {markers.length.toLocaleString()} of {filtered.length.toLocaleString()} shown on map{stateFilter ? ' · hover a dot for details' : ''}</span>
+                  <span>· {visibleMapCount.toLocaleString()} of {filtered.length.toLocaleString()} shown on map{mapZoomed ? ' · hover a dot for details' : ''}</span>
                 </div>
               </div>
             </div>
@@ -453,7 +482,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                        onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}>
                       <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
                         {a.photo
-                          ? <img src={a.photo} alt={`Headshot of ${a.name}`} width="64" height="64" loading="lazy" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          ? <><img src={a.photo} alt={`Headshot of ${a.name}`} width="64" height="64" loading="lazy" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} onError={(e) => { const fb = e.currentTarget.nextElementSibling; e.currentTarget.style.display = 'none'; if (fb) fb.style.display = 'flex' }} /><div style={{ display: 'none' }}><Silhouette size={64} /></div></>
                           : <Silhouette size={64} />}
                         <div style={{ minWidth: 0 }}>
                           <h3 style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 2px', color: GRAY.dark, lineHeight: 1.25 }}>{a.name}</h3>
