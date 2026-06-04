@@ -245,15 +245,36 @@ export default function AdvisorProfile({ member, slug }) {
   const phone = member.phone || member.mobile_phone || ''
   const web = websiteHref(member.website)
 
-  // SEO title/H1 — use stored directory fields when present, else sensible defaults.
-  const pageTitle = member.directory_page_title
-    || `${name}${member.city ? `, ${member.city}` : ''}${member.state ? `, ${member.state}` : ''} — NSSA® & IRMAACP™ Certified Advisor`
-  // Natural, human-readable H1 fallback (avoids keyword-stuffed phrasing).
-  const h1 = member.directory_h1
-    || `${name} — ${[hasNssa && 'NSSA®', hasIrmaa && 'IRMAACP™'].filter(Boolean).join(' & ')} Certified Advisor${member.city ? ` in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''}`
+  // ── SEO title / H1 / meta ───────────────────────────────────────────────
+  // Stored directory_* fields are AI-generated bulk defaults, so the template
+  // cleans them and enforces length limits. (When a `seo_reviewed` flag is
+  // later added, wrap this cleanup in `if (!member.seo_reviewed)` and honor
+  // the stored values verbatim when true.)
+
+  // Cert-adaptive expert role used in H1 + title.
+  const expertRole = (hasNssa && hasIrmaa) ? 'Social Security & Medicare Expert'
+    : hasNssa ? 'Social Security Expert'
+    : hasIrmaa ? 'Medicare & IRMAA Expert'
+    : 'Certified Advisor'
+
+  // Friendly H1 — e.g. "Joy Cheney, Social Security & Medicare Expert"
+  const h1 = `${name}, ${expertRole}`
+
+  // Page title ≤ 60 chars. Prefer name + role + location; trim gracefully.
+  function buildTitle() {
+    const loc = (member.city && member.state) ? ` in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''
+    const full = `${name}, ${expertRole}${loc}`
+    if (full.length <= 60) return full
+    const noLoc = `${name}, ${expertRole}`
+    if (noLoc.length <= 60) return noLoc
+    return truncateAtWord(noLoc, 60)
+  }
+  const pageTitle = buildTitle()
+
+  // Meta description ≤ 155 chars, word-boundary truncated.
   const metaDesc = paragraphs[0]
     ? truncateAtWord(paragraphs[0], 155)
-    : `${name} is an NSSA® and IRMAACP™ certified advisor${member.city ? ` in ${member.city}, ${member.state}` : ''}.`
+    : truncateAtWord(`${name} is a ${expertRole.toLowerCase()}${member.city ? ` based in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''}, helping clients with Social Security and Medicare planning.`, 155)
 
   // ── Credibility line: contextual, followed links to the training pages ──
   // Deterministic per advisor (stable across rebuilds), varied across advisors.
@@ -371,13 +392,32 @@ export default function AdvisorProfile({ member, slug }) {
         )}
       </Head>
 
+      <style>{`
+        @media (max-width: 860px) {
+          .hero-grid { grid-template-columns: 1fr !important; gap: 1.5rem !important; }
+          .hero-grid .headshot-col { max-width: 280px; margin: 0 auto; }
+          .body-grid { grid-template-columns: 1fr !important; gap: 2rem !important; }
+          .valueprop-grid { grid-template-columns: 1fr !important; gap: 1.75rem !important; }
+          .site-nav { display: none !important; }
+          .page-h1 { font-size: 1.6rem !important; }
+          .section-pad { padding: 2rem 1.25rem !important; }
+        }
+        @media (min-width: 861px) and (max-width: 1024px) {
+          .hero-grid { grid-template-columns: 220px 1fr !important; }
+          .hero-grid .actions-col { grid-column: 1 / -1; display: flex; gap: 12px; flex-wrap: wrap; }
+          .hero-grid .actions-col a { flex: 1 1 auto; }
+          .body-grid { grid-template-columns: 1fr 340px !important; }
+          .valueprop-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+      `}</style>
+
       <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', color: GRAY.dark }}>
 
         {/* Top nav — mirrors the Kajabi site so the page feels continuous */}
         <header style={{ background: 'white', borderBottom: `1px solid ${GRAY.border}`, padding: '1rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <a href={ROOT}><img src="/nssa-logo.png" alt="National Social Security Advisors" style={{ height: '44px', width: 'auto' }} /></a>
-            <nav style={{ display: 'flex', gap: '26px', alignItems: 'center', fontSize: '15px' }}>
+            <nav className="site-nav" style={{ display: 'flex', gap: '26px', alignItems: 'center', fontSize: '15px' }}>
               {[
                 ['About Us', `${ROOT}/about`],
                 ['Social Security Training', `${ROOT}/nssa-course`],
@@ -393,13 +433,13 @@ export default function AdvisorProfile({ member, slug }) {
         </header>
 
         {/* Hero */}
-        <section style={{ background: GRAY.bg, padding: '3rem 2rem' }}>
+        <section className="section-pad" style={{ background: GRAY.bg, padding: '3rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 style={{ fontSize: '2.4rem', fontWeight: 800, color: IRMAA.dark, marginBottom: '2rem' }}>{h1}</h1>
-            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: '2.5rem', alignItems: 'start' }}>
+            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 800, color: IRMAA.dark, marginBottom: '2rem' }}>{h1}</h1>
+            <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: '2.5rem', alignItems: 'start' }}>
 
               {/* Photo */}
-              <div>
+              <div className="headshot-col">
                 {member.profile_photo
                   ? <img src={member.profile_photo} alt={photoAlt} width="280" height="294" loading="eager" fetchpriority="high" style={{ width: '100%', height: 'auto', aspectRatio: '280 / 294', objectFit: 'cover', borderRadius: '4px', display: 'block' }} />
                   : <div style={{ width: '100%', aspectRatio: '1 / 1.15', background: NSSA.dark, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '64px', fontWeight: 700 }}>{(fname[0] || '?')}</div>}
@@ -424,7 +464,7 @@ export default function AdvisorProfile({ member, slug }) {
               </div>
 
               {/* Action buttons */}
-              <div>
+              <div className="actions-col">
                 {web && <a href={web} target="_blank" rel="nofollow noopener noreferrer" style={pillBtn}>Visit Website</a>}
                 {phone && <a href={`tel:${phone.replace(/[^0-9+]/g, '')}`} style={pillBtn}>Call {fname}</a>}
                 {member.email && <a href={`mailto:${member.email}`} style={pillBtn}>Email {fname}</a>}
@@ -435,8 +475,8 @@ export default function AdvisorProfile({ member, slug }) {
         </section>
 
         {/* Body: Professional Profile + Contact form */}
-        <section style={{ background: 'white', padding: '3.5rem 2rem' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 420px', gap: '3rem', alignItems: 'start' }}>
+        <section className="section-pad" style={{ background: 'white', padding: '3.5rem 2rem' }}>
+          <div className="body-grid" style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 420px', gap: '3rem', alignItems: 'start' }}>
 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '1.5rem' }}>
@@ -454,13 +494,13 @@ export default function AdvisorProfile({ member, slug }) {
         </section>
 
         {/* Value-prop band — matches the Kajabi "How an NSSA Advisor Will Help You" */}
-        <section style={{ background: '#e7e2d6', padding: '4rem 2rem' }}>
+        <section className="section-pad" style={{ background: '#e7e2d6', padding: '4rem 2rem' }}>
           <div style={{ maxWidth: '1100px', margin: '0 auto', textAlign: 'center' }}>
             <h2 style={{ fontSize: '2rem', fontWeight: 800, color: GRAY.dark, marginBottom: '1rem' }}>How an NSSA® Certified Advisor Will Help You</h2>
             <p style={{ fontSize: '16px', color: GRAY.text, maxWidth: '720px', margin: '0 auto 3rem', lineHeight: 1.6 }}>
               An NSSA® Certified Advisor provides the knowledge and expertise needed to maximize your Social Security benefits and help you achieve a secure retirement.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
+            <div className="valueprop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
               {[
                 ['Avoid Costly Social Security Claiming Mistakes', 'Navigating Social Security rules can be complex, and even small mistakes can cost you thousands of dollars in lost benefits. An NSSA® Certified Advisor ensures you make informed decisions and avoid costly errors.'],
                 ['Holistic Retirement Planning', 'An NSSA® Advisor integrates your Social Security strategy with your overall retirement plan, ensuring your assets work together to meet your financial goals and a clearer path to a secure future.'],
