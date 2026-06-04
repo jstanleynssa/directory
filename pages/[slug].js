@@ -3,7 +3,7 @@
 // One pre-built HTML page per certified advisor who has a bio.
 
 import Head from 'next/head'
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
 
@@ -292,7 +292,7 @@ export default function AdvisorProfile({ member, slug }) {
 
   // Split the chosen frame on tokens and interleave the linked anchors.
   const credLine = credFrame ? (
-    <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>
+    <p key="credline" style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>
       {credFrame.split(/(\{NAME\}|\{NSSA\}|\{IRMAA\})/).map((part, i) => {
         if (part === '{NAME}') return <span key={i}>{name}</span>
         if (part === '{NSSA}') return <span key={i}>{nssaLink}</span>
@@ -301,6 +301,20 @@ export default function AdvisorProfile({ member, slug }) {
       })}
     </p>
   ) : null
+
+  // Vary WHERE the credibility line lands among the bio paragraphs.
+  // Google weights links in the opening/middle higher than trailing ones, so
+  // we bias toward early slots. "Insert after paragraph N" where N is chosen
+  // deterministically per advisor. Slot 0 = after the 1st paragraph.
+  // Pool is weighted toward 0/1 (early) so most links sit high in the content.
+  const nPara = paragraphs.length
+  let credInsertAfter = 0
+  if (nPara >= 2) {
+    // candidate positions, weighted toward the front (after para 1 or 2)
+    const slots = nPara >= 4 ? [0, 0, 1, 1, 2] : nPara === 3 ? [0, 0, 1] : [0]
+    credInsertAfter = slots[stableIndex(seed + 'pos', slots.length)]
+  }
+
 
   // Descriptive alt for the headshot — frames it as a photo description
   // (accessibility best practice) while keeping name/role/company/location
@@ -434,7 +448,7 @@ export default function AdvisorProfile({ member, slug }) {
         {/* Hero */}
         <section className="section-pad" style={{ background: GRAY.bg, padding: '3rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 800, color: IRMAA.dark, marginBottom: '2rem' }}>{h1}</h1>
+            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 700, color: IRMAA.dark, marginBottom: '2rem' }}>{h1}</h1>
             <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: '2.5rem', alignItems: 'start' }}>
 
               {/* Photo */}
@@ -487,9 +501,13 @@ export default function AdvisorProfile({ member, slug }) {
                 <h2 style={{ fontSize: '1.9rem', fontWeight: 800, color: GRAY.dark }}>Professional Profile</h2>
               </div>
               {paragraphs.map((p, i) => (
-                <p key={i} style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>{p}</p>
+                <React.Fragment key={i}>
+                  <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>{p}</p>
+                  {credLine && i === credInsertAfter ? credLine : null}
+                </React.Fragment>
               ))}
-              {credLine}
+              {/* Fallback: if there were no paragraphs, still show the credibility line */}
+              {credLine && paragraphs.length === 0 ? credLine : null}
             </div>
 
             <ContactForm advisorName={name} advisorEmail={member.email} slug={slug} />
