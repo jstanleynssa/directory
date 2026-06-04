@@ -56,6 +56,18 @@ function stableIndex(seed, mod) {
   return h % mod
 }
 
+// Generic gray silhouette for advisors with no headshot (or a broken image URL).
+function HeadshotSilhouette() {
+  return (
+    <div style={{ width: '100%', aspectRatio: '280 / 294', background: '#e2e5ea', borderRadius: '4px', overflow: 'hidden', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="70%" height="70%" style={{ display: 'block' }}>
+        <circle cx="32" cy="23" r="13" fill="#b9bec7" />
+        <path d="M8 64c0-14 11-23 24-23s24 9 24 23z" fill="#b9bec7" />
+      </svg>
+    </div>
+  )
+}
+
 
 // ── Build-time data ─────────────────────────────────────────────────────────
 function admin() {
@@ -454,8 +466,27 @@ export default function AdvisorProfile({ member, slug }) {
               {/* Photo */}
               <div className="headshot-col">
                 {member.profile_photo
-                  ? <img src={member.profile_photo} alt={photoAlt} width="280" height="294" loading="eager" fetchpriority="high" style={{ width: '100%', height: 'auto', aspectRatio: '280 / 294', objectFit: 'cover', borderRadius: '4px', display: 'block' }} />
-                  : <div style={{ width: '100%', aspectRatio: '1 / 1.15', background: NSSA.dark, borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '64px', fontWeight: 700 }}>{(fname[0] || '?')}</div>}
+                  ? <>
+                      <img
+                        src={member.profile_photo}
+                        alt={photoAlt}
+                        width="280" height="294"
+                        loading="eager" fetchpriority="high"
+                        style={{ width: '100%', height: 'auto', aspectRatio: '280 / 294', objectFit: 'cover', borderRadius: '4px', display: 'block' }}
+                        onError={(e) => {
+                          const fb = e.currentTarget.nextElementSibling
+                          e.currentTarget.style.display = 'none'
+                          if (fb) fb.style.display = 'flex'
+                        }}
+                      />
+                      <div style={{ display: 'none', width: '100%', aspectRatio: '280 / 294', background: '#e2e5ea', borderRadius: '4px', overflow: 'hidden', alignItems: 'flex-end', justifyContent: 'center' }} aria-hidden="true">
+                        <svg viewBox="0 0 64 64" width="70%" height="70%" style={{ display: 'block' }}>
+                          <circle cx="32" cy="23" r="13" fill="#b9bec7" />
+                          <path d="M8 64c0-14 11-23 24-23s24 9 24 23z" fill="#b9bec7" />
+                        </svg>
+                      </div>
+                    </>
+                  : <HeadshotSilhouette />}
               </div>
 
               {/* Details */}
