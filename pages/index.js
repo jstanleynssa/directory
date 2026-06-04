@@ -4,36 +4,44 @@
 // at build time; all filtering happens client-side over that lightweight list.
 
 import Head from 'next/head'
-import { useState, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/router'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
 import { feature } from 'topojson-client'
-import { geoBounds } from 'd3-geo'
+import { geoAlbersUsa, geoPath } from 'd3-geo'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
 import { STATE_NAMES, stateCode, coordsForZip, milesBetween } from '../lib/geo'
 import usTopo from '../lib/us-states.json'
 
-// Precompute each state's center + a zoom that fits it in the map viewport,
-// so zoom is consistent by STATE SIZE (not by where advisors happen to cluster).
+// Map dimensions — must match the ComposableMap width/height below.
+const MAP_W = 975, MAP_H = 610
+
+// Precompute each state's center + a zoom that fits the WHOLE state within the
+// viewport. We replicate react-simple-maps' default projection (geoAlbersUsa,
+// default scale, translated to the map center) and measure the state's real
+// pixel bounding box, so the fit is exact regardless of projection distortion.
 const STATE_VIEW = (() => {
   const out = {}
   try {
     const fc = feature(usTopo, usTopo.objects.states)
-    // Map dimensions used by ComposableMap (must match width/height below).
-    const MAP_W = 975, MAP_H = 610
+    const projection = geoAlbersUsa().translate([MAP_W / 2, MAP_H / 2])
+    const path = geoPath(projection)
     for (const f of fc.features) {
       const nm = f.properties && f.properties.name
       if (!nm) continue
-      const [[minLng, minLat], [maxLng, maxLat]] = geoBounds(f)
-      const center = [(minLng + maxLng) / 2, (minLat + maxLat) / 2]
-      // geoAlbersUsa base scale ~1070 for a 975-wide map. Approximate the zoom
-      // needed so the state's lng/lat span fills ~80% of the viewport.
-      const spanLng = Math.max(maxLng - minLng, 0.1)
-      const spanLat = Math.max(maxLat - minLat, 0.1)
-      // Degrees that fill the viewport at zoom=1 (empirical for geoAlbersUsa on this map).
-      const FULL_LNG = 120, FULL_LAT = 60
-      const zoom = Math.min(Math.max(Math.min((FULL_LNG / spanLng), (FULL_LAT / spanLat)) * 0.8, 2), 12)
-      out[nm] = { center, zoom }
+      const [[x0, y0], [x1, y1]] = path.bounds(f) // pixel-space bbox at zoom=1
+      const w = Math.max(x1 - x0, 1)
+      const h = Math.max(y1 - y0, 1)
+      // Zoom that fits the state in the viewport with ~12% padding on the tighter axis.
+      const fit = Math.min(MAP_W / w, MAP_H / h) * 0.88
+      const zoom = Math.min(Math.max(fit, 1.2), 14)
+      // Center of the state in lng/lat (invert the pixel center back to coords).
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2
+      const center = projection.invert ? projection.invert([cx, cy]) : null
+      if (center && isFinite(center[0]) && isFinite(center[1])) {
+        out[nm] = { center, zoom }
+      }
     }
   } catch (e) { /* fall back to advisor-spread zoom if anything fails */ }
   return out
@@ -59,7 +67,31 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const [origin, setOrigin] = useState(null) // {lat,lng} for proximity
   const [zipError, setZipError] = useState('')
   const [zipLoading, setZipLoading] = useState(false)
-  const [hovered, setHovered] = useState(null) // advisor under cursor (state-level only)
+  const [hovered, setHovered] = useState(null) // advisor under cursor (when map is zoomed)
+  const [dismissing, setDismissing] = useState(false) // drives the fade-out animation
+  const [zoomNudge, setZoomNudge] = useState(1) // user zoom-control multiplier on top of mapView.zoom
+  const dismissTimer = useRef(null)
+  const router = useRouter()
+
+  // The map is "zoomed/interactive" when a state is selected OR a ZIP origin is set.
+  const mapZoomed = !!(stateFilter || origin)
+
+  // Reset manual zoom whenever the fitted view changes (new state / ZIP / cleared).
+  useEffect(() => { setZoomNudge(1) }, [stateFilter, origin])
+
+  // Show the hover badge, cancelling any pending fade-out.
+  const showPreview = useCallback((advisor, x, y) => {
+    if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null }
+    setDismissing(false)
+    setHovered({ advisor, x, y })
+  }, [])
+
+  // Begin fade-out, then clear after the animation completes.
+  const hidePreview = useCallback(() => {
+    setDismissing(true)
+    if (dismissTimer.current) clearTimeout(dismissTimer.current)
+    dismissTimer.current = setTimeout(() => { setHovered(null); setDismissing(false); dismissTimer.current = null }, 160)
+  }, [])
 
   // Resolve the visitor's zip via the lightweight API (keeps the big dataset server-side).
   const applyZip = useCallback(async () => {
@@ -70,6 +102,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
       const r = await fetch(`/api/zip?z=${encodeURIComponent(z)}`)
       if (!r.ok) { setOrigin(null); setZipError('ZIP not found'); return }
       const c = await r.json()
+      setStateFilter('')   // proximity is national; clear any state filter so results aren't double-constrained
       setOrigin(c)
     } catch {
       setOrigin(null); setZipError('Could not look up ZIP')
@@ -159,7 +192,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
         .rsm-zoomable-group { transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
         .map-marker { cursor: pointer; transition: r 0.2s ease; }
         @keyframes badgePop { 0% { opacity: 0; transform: scale(0.85) translateY(4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes badgePopOut { 0% { opacity: 1; transform: scale(1) translateY(0); } 100% { opacity: 0; transform: scale(0.9) translateY(3px); } }
         .advisor-pop { animation: badgePop 0.16s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .advisor-pop-out { animation: badgePopOut 0.16s ease-in forwards; }
         @media (max-width: 1024px) {
           .dir-top { grid-template-columns: 1fr; }
           .cards { grid-template-columns: repeat(2, 1fr); }
@@ -274,7 +309,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
               <div className="map-wrap">
                 <div style={{ position: 'relative' }}>
                   <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
-                    <ZoomableGroup center={mapView.center} zoom={mapView.zoom} minZoom={1} maxZoom={14}>
+                    <ZoomableGroup center={mapView.center} zoom={Math.min(Math.max(mapView.zoom * zoomNudge, 1), 16)} minZoom={1} maxZoom={16}>
                       <Geographies geography={usTopo}>
                         {({ geographies }) =>
                           geographies.map(geo => {
@@ -300,34 +335,50 @@ export default function DirectoryIndex({ advisors, stateList }) {
                         <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
                           <circle
                             className="map-marker"
-                            r={(stateFilter ? 5 : 4) / mapView.zoom ** 0.7}
+                            r={(mapZoomed ? 5 : 4) / mapView.zoom ** 0.7}
                             fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
                             stroke="white"
                             strokeWidth={1.2 / mapView.zoom ** 0.7}
                             opacity={0.85}
-                            onMouseEnter={stateFilter ? (e) => {
+                            style={{ cursor: mapZoomed ? 'pointer' : 'default' }}
+                            onClick={mapZoomed ? () => router.push(`/${a.slug}`) : undefined}
+                            onMouseEnter={mapZoomed ? (e) => {
                               const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
-                              setHovered({ advisor: a, x: e.clientX - rect.left, y: e.clientY - rect.top })
+                              showPreview(a, e.clientX - rect.left, e.clientY - rect.top)
                             } : undefined}
-                            onMouseLeave={stateFilter ? () => setHovered(null) : undefined}
+                            onMouseLeave={mapZoomed ? hidePreview : undefined}
                           />
                         </Marker>
                       ))}
                     </ZoomableGroup>
                   </ComposableMap>
 
-                  {/* Hover preview (state level only) — clickable to the profile */}
+                  {/* Zoom controls */}
+                  <div style={{ position: 'absolute', right: '12px', bottom: '12px', display: 'flex', flexDirection: 'column', gap: '6px', zIndex: 4 }}>
+                    <button
+                      aria-label="Zoom in"
+                      onClick={() => setZoomNudge(z => Math.min(z * 1.5, 8))}
+                      style={{ width: '34px', height: '34px', borderRadius: '8px', border: `1px solid ${GRAY.border}`, background: 'white', color: GRAY.dark, fontSize: '20px', fontWeight: 700, lineHeight: 1, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                    >+</button>
+                    <button
+                      aria-label="Zoom out"
+                      onClick={() => setZoomNudge(z => Math.max(z / 1.5, 0.4))}
+                      style={{ width: '34px', height: '34px', borderRadius: '8px', border: `1px solid ${GRAY.border}`, background: 'white', color: GRAY.dark, fontSize: '22px', fontWeight: 700, lineHeight: 1, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                    >−</button>
+                  </div>
+
+                  {/* Hover preview (when zoomed: state or ZIP). The dot itself is
+                      clickable; this badge is informational and fades in/out. */}
                   {hovered && hovered.advisor && (
                     <a
                       href={`/${hovered.advisor.slug}`}
-                      className="advisor-pop"
-                      onMouseLeave={() => setHovered(null)}
+                      className={dismissing ? 'advisor-pop-out' : 'advisor-pop'}
                       style={{
                         position: 'absolute', left: hovered.x + 14, top: hovered.y - 10,
                         zIndex: 5, background: 'white', textDecoration: 'none', color: 'inherit',
                         border: `1px solid ${GRAY.border}`, borderRadius: '10px',
                         boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: '10px 12px',
-                        width: '240px', maxWidth: 'calc(100% - 20px)', cursor: 'pointer',
+                        width: '240px', maxWidth: 'calc(100% - 20px)', pointerEvents: 'none',
                         display: 'block', transformOrigin: 'top left',
                         ...(hovered.x > 700 ? { transform: 'translateX(calc(-100% - 28px))' } : null),
                       }}
