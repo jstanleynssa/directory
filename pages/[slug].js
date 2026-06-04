@@ -411,7 +411,7 @@ export default function AdvisorProfile({ member, slug }) {
         }
       `}</style>
 
-      <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', color: GRAY.dark }}>
+      <div style={{ fontFamily: '"Open Sans", system-ui, -apple-system, sans-serif', color: GRAY.dark }}>
 
         {/* Top nav — mirrors the Kajabi site so the page feels continuous */}
         <header style={{ background: 'white', borderBottom: `1px solid ${GRAY.border}`, padding: '1rem 2rem' }}>
