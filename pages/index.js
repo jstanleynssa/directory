@@ -58,6 +58,18 @@ const IRMAA_COURSE = 'https://www.nssapros.com/irmaa-medicare-training-course'
 
 const RADIUS_OPTIONS = [10, 25, 50, 100, 250]
 
+// Generic gray silhouette for advisors without a headshot.
+function Silhouette({ size }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: '50%', background: '#e2e5ea', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} aria-hidden="true">
+      <svg viewBox="0 0 64 64" width={size} height={size} style={{ display: 'block' }}>
+        <circle cx="32" cy="24" r="13" fill="#b9bec7" />
+        <path d="M9 60c0-13 10.3-21 23-21s23 8 23 21z" fill="#b9bec7" />
+      </svg>
+    </div>
+  )
+}
+
 export default function DirectoryIndex({ advisors, stateList }) {
   const [name, setName] = useState('')
   const [stateFilter, setStateFilter] = useState('')
@@ -70,7 +82,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const [hovered, setHovered] = useState(null) // advisor under cursor (when map is zoomed)
   const [dismissing, setDismissing] = useState(false) // drives the fade-out animation
   const [zoomNudge, setZoomNudge] = useState(1) // user zoom-control multiplier on top of mapView.zoom
+  const [markersFading, setMarkersFading] = useState(false) // brief fade on designation change
   const dismissTimer = useRef(null)
+  const fadeTimer = useRef(null)
   const router = useRouter()
 
   // The map is "zoomed/interactive" when a state is selected OR a ZIP origin is set.
@@ -78,6 +92,14 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
   // Reset manual zoom whenever the fitted view changes (new state / ZIP / cleared).
   useEffect(() => { setZoomNudge(1) }, [stateFilter, origin])
+
+  // Brief fade-out/in of the map dots when the designation filter changes.
+  useEffect(() => {
+    setMarkersFading(true)
+    if (fadeTimer.current) clearTimeout(fadeTimer.current)
+    fadeTimer.current = setTimeout(() => { setMarkersFading(false); fadeTimer.current = null }, 220)
+    return () => { if (fadeTimer.current) clearTimeout(fadeTimer.current) }
+  }, [designation])
 
   // Show the hover badge, cancelling any pending fade-out.
   const showPreview = useCallback((advisor, x, y) => {
@@ -231,7 +253,8 @@ export default function DirectoryIndex({ advisors, stateList }) {
               Find a Certified Advisor
             </h1>
             <p style={{ fontSize: '16px', color: GRAY.text, maxWidth: '760px', marginTop: '0.75rem', lineHeight: 1.6 }}>
-              Search our national directory of {advisors.length.toLocaleString()} NSSA® and IRMAACP™ certified professionals. Filter by name, state, designation, or distance from your ZIP code.
+              Search our national directory of {advisors.length.toLocaleString()} NSSA® and IRMAACP™ certified professionals.<br />
+              Filter by name, state, designation, or distance from your ZIP code.
             </p>
           </div>
         </section>
@@ -331,25 +354,27 @@ export default function DirectoryIndex({ advisors, stateList }) {
                           })
                         }
                       </Geographies>
-                      {markers.map(a => (
-                        <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
-                          <circle
-                            className="map-marker"
-                            r={(mapZoomed ? 5 : 4) / mapView.zoom ** 0.7}
-                            fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
-                            stroke="white"
-                            strokeWidth={1.2 / mapView.zoom ** 0.7}
-                            opacity={0.85}
-                            style={{ cursor: mapZoomed ? 'pointer' : 'default' }}
-                            onClick={mapZoomed ? () => router.push(`/${a.slug}`) : undefined}
-                            onMouseEnter={mapZoomed ? (e) => {
-                              const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
-                              showPreview(a, e.clientX - rect.left, e.clientY - rect.top)
-                            } : undefined}
-                            onMouseLeave={mapZoomed ? hidePreview : undefined}
-                          />
-                        </Marker>
-                      ))}
+                      <g style={{ opacity: markersFading ? 0 : 1, transition: 'opacity 0.2s ease-in-out' }}>
+                        {markers.map(a => (
+                          <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
+                            <circle
+                              className="map-marker"
+                              r={(mapZoomed ? 5 : 4) / mapView.zoom ** 0.7}
+                              fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
+                              stroke="white"
+                              strokeWidth={1.2 / mapView.zoom ** 0.7}
+                              opacity={0.85}
+                              style={{ cursor: mapZoomed ? 'pointer' : 'default' }}
+                              onClick={mapZoomed ? () => router.push(`/${a.slug}`) : undefined}
+                              onMouseEnter={mapZoomed ? (e) => {
+                                const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
+                                showPreview(a, e.clientX - rect.left, e.clientY - rect.top)
+                              } : undefined}
+                              onMouseLeave={mapZoomed ? hidePreview : undefined}
+                            />
+                          </Marker>
+                        ))}
+                      </g>
                     </ZoomableGroup>
                   </ComposableMap>
 
@@ -386,7 +411,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         {hovered.advisor.photo
                           ? <img src={hovered.advisor.photo} alt="" width="44" height="44" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                          : <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: NSSA.dark, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>{hovered.advisor.name[0]}</div>}
+                          : <Silhouette size={44} />}
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 700, fontSize: '14px', color: GRAY.dark, lineHeight: 1.2 }}>{hovered.advisor.name}</div>
                           {hovered.advisor.title && <div style={{ fontSize: '12px', color: GRAY.text, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hovered.advisor.title}</div>}
@@ -429,7 +454,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                       <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
                         {a.photo
                           ? <img src={a.photo} alt={`Headshot of ${a.name}`} width="64" height="64" loading="lazy" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                          : <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: NSSA.dark, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', fontWeight: 700, flexShrink: 0 }}>{a.name[0]}</div>}
+                          : <Silhouette size={64} />}
                         <div style={{ minWidth: 0 }}>
                           <h3 style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 2px', color: GRAY.dark, lineHeight: 1.25 }}>{a.name}</h3>
                           {a.title && <p style={{ fontSize: '13px', color: GRAY.text, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</p>}
