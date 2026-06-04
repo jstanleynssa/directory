@@ -6,7 +6,7 @@ import Head from 'next/head'
 import React, { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
-import { STATE_NAMES } from '../lib/geo'
+import { STATE_NAMES, stateNameToSlug } from '../lib/geo'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
@@ -322,7 +322,7 @@ export default function AdvisorProfile({ member, slug }) {
   // State links to the (future) state landing page /advisors/<state-slug>.
   const stCode = stateToken(member.state).toUpperCase()
   const stName = STATE_NAMES[stCode] || member.state || ''
-  const stSlug = stName ? stName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : ''
+  const stSlug = stName ? stateNameToSlug(stName) : ''
   const breadcrumbs = [
     { label: 'United States', href: SITE + '/' },
     ...(stName && stSlug ? [{ label: stName, href: `${SITE}/advisors/${stSlug}` }] : []),
