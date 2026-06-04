@@ -470,7 +470,7 @@ export default function AdvisorProfile({ member, slug }) {
                   {member.address && <div>{member.address}</div>}
                   {(member.city || member.state) && <div>{[member.city, member.state].filter(Boolean).join(', ')}{member.zip ? ` ${member.zip}` : ''}</div>}
                 </div>
-                {phone && <p style={{ fontSize: '16px', fontWeight: 700, color: NSSA.medium, marginBottom: '4px' }}>{phone}</p>}
+                {phone && <p style={{ fontSize: '16px', marginTop: 0, marginBottom: '4px' }}><a href={`tel:${phone.replace(/[^0-9+]/g, '')}`} style={{ color: NSSA.medium, textDecoration: 'none' }}>{phone}</a></p>}
                 {web && <p style={{ fontSize: '15px', marginTop: 0, marginBottom: '16px' }}><a href={web} target="_blank" rel="nofollow noopener noreferrer" style={{ color: NSSA.medium, textDecoration: 'none' }}>{cleanWebsite(member.website)}</a></p>}
 
                 {/* Cert badges — linked to the relevant training pages */}
