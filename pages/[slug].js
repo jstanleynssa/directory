@@ -532,19 +532,7 @@ export default function AdvisorProfile({ member, slug }) {
         {/* Hero */}
         <section className="section-pad" style={{ background: GRAY.bg, padding: '3rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 700, color: IRMAA.dark, marginBottom: '0.75rem' }}>{h1}</h1>
-            <nav aria-label="Breadcrumb" style={{ marginBottom: '2rem' }}>
-              <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', fontSize: '14px', color: GRAY.text }}>
-                {breadcrumbs.map((b, i) => (
-                  <li key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                    {b.href
-                      ? <a href={b.href} style={{ color: NSSA.medium, textDecoration: 'none' }}>{b.label}</a>
-                      : <span aria-current="page" style={{ color: GRAY.text }}>{b.label}</span>}
-                    {i < breadcrumbs.length - 1 && <span style={{ color: GRAY.border, userSelect: 'none' }}>›</span>}
-                  </li>
-                ))}
-              </ol>
-            </nav>
+            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 700, color: IRMAA.dark, marginBottom: '2rem' }}>{h1}</h1>
             <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: '2.5rem', alignItems: 'start' }}>
 
               {/* Photo */}
@@ -615,6 +603,18 @@ export default function AdvisorProfile({ member, slug }) {
                 <span style={{ display: 'inline-block', width: '5px', height: '34px', background: GRAY.dark, borderRadius: '2px' }} />
                 <h2 style={{ fontSize: '1.9rem', fontWeight: 800, color: GRAY.dark }}>Professional Profile</h2>
               </div>
+              <nav aria-label="Breadcrumb" style={{ marginBottom: '1.75rem' }}>
+                <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', fontSize: '14px', color: GRAY.text }}>
+                  {breadcrumbs.map((b, i) => (
+                    <li key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                      {b.href
+                        ? <a href={b.href} style={{ color: NSSA.medium, textDecoration: 'none', fontWeight: 600 }}>{b.label}</a>
+                        : <span aria-current="page" style={{ color: GRAY.text }}>{b.label}</span>}
+                      {i < breadcrumbs.length - 1 && <span style={{ color: GRAY.text, userSelect: 'none', fontWeight: 600 }}>&gt;</span>}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
               {paragraphs.map((p, i) => (
                 <React.Fragment key={i}>
                   <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1.1rem' }}>{p}</p>
