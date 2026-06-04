@@ -420,11 +420,10 @@ export default function AdvisorProfile({ member, slug }) {
             <nav className="site-nav" style={{ display: 'flex', gap: '26px', alignItems: 'center', fontSize: '15px' }}>
               {[
                 ['About Us', `${ROOT}/about`],
-                ['Social Security Training', `${ROOT}/nssa-course`],
-                ['IRMAA Medicare Training', `${ROOT}/irmaa-course`],
-                ['Find an Advisor', `${ROOT}/find-an-advisor`],
+                ['Social Security Training', NSSA_COURSE],
+                ['IRMAA Medicare Training', IRMAA_COURSE],
+                ['Find an Advisor', `${ROOT}/find-nssa`],
                 ['Contact Us', `${ROOT}/contact`],
-                ['Ask a Question', `${ROOT}/ask`],
               ].map(([label, href]) => (
                 <a key={label} href={href} style={{ color: GRAY.dark, textDecoration: 'none' }}>{label}</a>
               ))}
@@ -447,19 +446,23 @@ export default function AdvisorProfile({ member, slug }) {
 
               {/* Details */}
               <div>
-                <h2 style={{ fontSize: '1.7rem', fontWeight: 700, marginBottom: '8px' }}>{name}</h2>
-                {member.job_title && <p style={{ fontSize: '17px', color: GRAY.dark, marginBottom: '4px' }}>{member.job_title}</p>}
-                {member.company && <p style={{ fontSize: '15px', color: GRAY.dark, marginBottom: '14px' }}>{member.company}</p>}
-                <div style={{ fontSize: '15px', color: GRAY.dark, lineHeight: 1.7, marginBottom: '14px' }}>
+                <h2 style={{ fontSize: '1.7rem', fontWeight: 700, marginTop: 0, marginBottom: '2px', lineHeight: 1.2 }}>{name}</h2>
+                {(member.job_title || member.company) && (
+                  <p style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 400, fontSize: '16px', color: GRAY.dark, marginTop: 0, marginBottom: '18px' }}>
+                    {[member.job_title, member.company].filter(Boolean).join(', ')}
+                  </p>
+                )}
+                <div style={{ fontSize: '15px', color: GRAY.dark, lineHeight: 1.7, marginBottom: '10px' }}>
                   {member.address && <div>{member.address}</div>}
                   {(member.city || member.state) && <div>{[member.city, member.state].filter(Boolean).join(', ')}{member.zip ? ` ${member.zip}` : ''}</div>}
                 </div>
-                {phone && <p style={{ fontSize: '16px', fontWeight: 700, color: NSSA.medium, marginBottom: '16px' }}>{phone}</p>}
+                {phone && <p style={{ fontSize: '16px', fontWeight: 700, color: NSSA.medium, marginBottom: '4px' }}>{phone}</p>}
+                {web && <p style={{ fontSize: '15px', marginTop: 0, marginBottom: '16px' }}><a href={web} target="_blank" rel="nofollow noopener noreferrer" style={{ color: NSSA.medium, textDecoration: 'none' }}>{cleanWebsite(member.website)}</a></p>}
 
-                {/* Cert badges */}
-                <div style={{ display: 'flex', gap: '14px' }}>
-                  {hasNssa && <img src="/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto' }} />}
-                  {hasIrmaa && <img src="/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto' }} />}
+                {/* Cert badges — linked to the relevant training pages */}
+                <div style={{ display: 'flex', gap: '14px', marginLeft: '-3px' }}>
+                  {hasNssa && <a href={NSSA_COURSE} aria-label="NSSA® Social Security training"><img src="/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
+                  {hasIrmaa && <a href={IRMAA_COURSE} aria-label="IRMAACP™ Medicare training"><img src="/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
                 </div>
               </div>
 
