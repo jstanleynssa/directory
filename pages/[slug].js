@@ -6,6 +6,7 @@ import Head from 'next/head'
 import React, { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
+import { STATE_NAMES } from '../lib/geo'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
@@ -45,6 +46,32 @@ const NSSA_FRAMES = [
 const IRMAA_FRAMES = [
   '{NAME} has completed the {IRMAA}, with focused expertise in Medicare and income-related premium planning.',
   'As an {IRMAA} holder, {NAME} helps clients navigate Medicare costs and IRMAA surcharges with confidence.',
+]
+
+// ── H1 role phrasing ────────────────────────────────────────────────────────
+// Short, varied, cert-adaptive role lines for the H1. Lead with the advisor's
+// name elsewhere; these are the role half. Deliberately AVOID "expert" (legal/
+// compliance); use specialist / consultant / advisor / professional / planner.
+// {TOPIC} is replaced with the cert-adaptive subject.
+const ROLE_NOUNS = ['Specialist', 'Consultant', 'Advisor', 'Professional', 'Planner']
+// Cert-adaptive subject phrase.
+function topicForCerts(hasNssa, hasIrmaa) {
+  if (hasNssa && hasIrmaa) return 'Social Security & Medicare'
+  if (hasNssa) return 'Social Security'
+  if (hasIrmaa) return 'Medicare & IRMAA'
+  return 'Retirement'
+}
+// Role-line frames. {TOPIC} = subject, {NOUN} = role noun, {TITLE} = job title.
+// Frames without {TITLE} are always safe; {TITLE} frames are used only when a
+// job title exists.
+const ROLE_FRAMES_NOTITLE = [
+  '{TOPIC} {NOUN}',
+  '{TOPIC} Planning {NOUN}',
+  'Certified {TOPIC} {NOUN}',
+]
+const ROLE_FRAMES_TITLE = [
+  '{TITLE} & {TOPIC} {NOUN}',
+  '{TITLE} Specializing in {TOPIC}',
 ]
 
 // Stable per-advisor index from a string (email), so phrasing is varied across
@@ -263,21 +290,51 @@ export default function AdvisorProfile({ member, slug }) {
   // later added, wrap this cleanup in `if (!member.seo_reviewed)` and honor
   // the stored values verbatim when true.)
 
-  // Cert-adaptive expert role used in H1 + title.
-  const expertRole = (hasNssa && hasIrmaa) ? 'Social Security & Medicare Expert'
-    : hasNssa ? 'Social Security Expert'
-    : hasIrmaa ? 'Medicare & IRMAA Expert'
-    : 'Certified Advisor'
+  // Deterministic per-advisor seed (stable across rebuilds, varied across advisors).
+  const seed = member.email || slug
 
-  // Friendly H1 — e.g. "Joy Cheney, Social Security & Medicare Expert"
-  const h1 = `${name}, ${expertRole}`
+  // Build a SHORT, VARIED role line for the H1. Leads with the advisor name
+  // (added below). Cert-adaptive subject; rotates role nouns; weaves in the job
+  // title when one exists and the result stays reasonably short. Avoids "expert".
+  const topic = topicForCerts(hasNssa, hasIrmaa)
+  const roleNoun = ROLE_NOUNS[stableIndex(seed + 'rn', ROLE_NOUNS.length)]
+  const jobTitle = (member.job_title || '').trim()
+  function buildRoleLine() {
+    const fill = (f) => f
+      .replace('{TOPIC}', topic)
+      .replace('{NOUN}', roleNoun)
+      .replace('{TITLE}', jobTitle)
+    // Prefer a title-based frame when a concise job title exists (keeps H1 short).
+    if (jobTitle && jobTitle.length <= 26) {
+      const f = ROLE_FRAMES_TITLE[stableIndex(seed + 'rf', ROLE_FRAMES_TITLE.length)]
+      const line = fill(f)
+      if (`${name}, ${line}`.length <= 58) return line
+    }
+    const nf = ROLE_FRAMES_NOTITLE[stableIndex(seed + 'rn2', ROLE_FRAMES_NOTITLE.length)]
+    return fill(nf)
+  }
+  const roleLine = buildRoleLine()
+
+  // H1 — e.g. "Joy Cheney, Social Security Planning Specialist"
+  const h1 = `${name}, ${roleLine}`
+
+  // ── Breadcrumb: United States > State > Advisor ─────────────────────────
+  // State links to the (future) state landing page /advisors/<state-slug>.
+  const stCode = stateToken(member.state).toUpperCase()
+  const stName = STATE_NAMES[stCode] || member.state || ''
+  const stSlug = stName ? stName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : ''
+  const breadcrumbs = [
+    { label: 'United States', href: SITE + '/' },
+    ...(stName && stSlug ? [{ label: stName, href: `${SITE}/advisors/${stSlug}` }] : []),
+    { label: name, href: null }, // current page
+  ]
 
   // Page title ≤ 60 chars. Prefer name + role + location; trim gracefully.
   function buildTitle() {
     const loc = (member.city && member.state) ? ` in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''
-    const full = `${name}, ${expertRole}${loc}`
+    const full = `${name}, ${roleLine}${loc}`
     if (full.length <= 60) return full
-    const noLoc = `${name}, ${expertRole}`
+    const noLoc = `${name}, ${roleLine}`
     if (noLoc.length <= 60) return noLoc
     return truncateAtWord(noLoc, 60)
   }
@@ -286,11 +343,10 @@ export default function AdvisorProfile({ member, slug }) {
   // Meta description ≤ 155 chars, word-boundary truncated.
   const metaDesc = paragraphs[0]
     ? truncateAtWord(paragraphs[0], 155)
-    : truncateAtWord(`${name} is a ${expertRole.toLowerCase()}${member.city ? ` based in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''}, helping clients with Social Security and Medicare planning.`, 155)
+    : truncateAtWord(`${name} is a ${roleLine.toLowerCase()}${member.city ? ` based in ${member.city}, ${stateToken(member.state).toUpperCase()}` : ''}, helping clients with Social Security and Medicare planning.`, 155)
 
   // ── Credibility line: contextual, followed links to the training pages ──
   // Deterministic per advisor (stable across rebuilds), varied across advisors.
-  const seed = member.email || slug
   const nssaAnchor = NSSA_ANCHORS[stableIndex(seed + 'n', NSSA_ANCHORS.length)]
   const irmaaAnchor = IRMAA_ANCHORS[stableIndex(seed + 'i', IRMAA_ANCHORS.length)]
   const linkStyle = { color: NSSA.medium, textDecoration: 'underline' }
@@ -385,6 +441,18 @@ export default function AdvisorProfile({ member, slug }) {
     sameAs: [member.linkedin_url ? websiteHref(member.linkedin_url) : null, web].filter(Boolean),
   } : null
 
+  // BreadcrumbList schema (United States > State > Advisor) for rich results.
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: breadcrumbs.map((b, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: b.label,
+      ...(b.href ? { item: b.href } : {}),
+    })),
+  }
+
   const pillBtn = {
     display: 'block', textAlign: 'center', padding: '14px 24px', marginBottom: '12px',
     border: `2px solid ${GRAY.dark}`, borderRadius: '999px', background: 'white',
@@ -416,6 +484,10 @@ export default function AdvisorProfile({ member, slug }) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
           />
         )}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        />
       </Head>
 
       <style>{`
@@ -460,7 +532,19 @@ export default function AdvisorProfile({ member, slug }) {
         {/* Hero */}
         <section className="section-pad" style={{ background: GRAY.bg, padding: '3rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 700, color: IRMAA.dark, marginBottom: '2rem' }}>{h1}</h1>
+            <h1 className="page-h1" style={{ fontSize: '2.4rem', fontWeight: 700, color: IRMAA.dark, marginBottom: '0.75rem' }}>{h1}</h1>
+            <nav aria-label="Breadcrumb" style={{ marginBottom: '2rem' }}>
+              <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', fontSize: '14px', color: GRAY.text }}>
+                {breadcrumbs.map((b, i) => (
+                  <li key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    {b.href
+                      ? <a href={b.href} style={{ color: NSSA.medium, textDecoration: 'none' }}>{b.label}</a>
+                      : <span aria-current="page" style={{ color: GRAY.text }}>{b.label}</span>}
+                    {i < breadcrumbs.length - 1 && <span style={{ color: GRAY.border, userSelect: 'none' }}>›</span>}
+                  </li>
+                ))}
+              </ol>
+            </nav>
             <div className="hero-grid" style={{ display: 'grid', gridTemplateColumns: '280px 1fr 280px', gap: '2.5rem', alignItems: 'start' }}>
 
               {/* Photo */}
