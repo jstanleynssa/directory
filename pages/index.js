@@ -6,10 +6,38 @@
 import Head from 'next/head'
 import { useState, useMemo, useCallback } from 'react'
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
+import { feature } from 'topojson-client'
+import { geoBounds } from 'd3-geo'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
 import { STATE_NAMES, stateCode, coordsForZip, milesBetween } from '../lib/geo'
 import usTopo from '../lib/us-states.json'
+
+// Precompute each state's center + a zoom that fits it in the map viewport,
+// so zoom is consistent by STATE SIZE (not by where advisors happen to cluster).
+const STATE_VIEW = (() => {
+  const out = {}
+  try {
+    const fc = feature(usTopo, usTopo.objects.states)
+    // Map dimensions used by ComposableMap (must match width/height below).
+    const MAP_W = 975, MAP_H = 610
+    for (const f of fc.features) {
+      const nm = f.properties && f.properties.name
+      if (!nm) continue
+      const [[minLng, minLat], [maxLng, maxLat]] = geoBounds(f)
+      const center = [(minLng + maxLng) / 2, (minLat + maxLat) / 2]
+      // geoAlbersUsa base scale ~1070 for a 975-wide map. Approximate the zoom
+      // needed so the state's lng/lat span fills ~80% of the viewport.
+      const spanLng = Math.max(maxLng - minLng, 0.1)
+      const spanLat = Math.max(maxLat - minLat, 0.1)
+      // Degrees that fill the viewport at zoom=1 (empirical for geoAlbersUsa on this map).
+      const FULL_LNG = 120, FULL_LAT = 60
+      const zoom = Math.min(Math.max(Math.min((FULL_LNG / spanLng), (FULL_LAT / spanLat)) * 0.8, 2), 12)
+      out[nm] = { center, zoom }
+    }
+  } catch (e) { /* fall back to advisor-spread zoom if anything fails */ }
+  return out
+})()
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
@@ -86,21 +114,23 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
   const hasFilters = name || stateFilter || designation || origin
 
-  // Map view: zoom to the selected state (or proximity origin) by averaging the
-  // relevant advisor coordinates; otherwise show the full national view.
+  // Map view: zoom to the selected state by its geographic bounds (consistent
+  // regardless of advisor distribution), or to the proximity origin.
   const mapView = useMemo(() => {
-    const pts = markers.map(a => a.coords)
     if (origin) {
       return { center: [origin.lng, origin.lat], zoom: 6 }
     }
-    if (stateFilter && pts.length) {
-      const avgLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length
-      const avgLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length
-      // Spread of points → zoom (tighter spread = more zoom). Higher base for a closer view.
-      const lngs = pts.map(p => p.lng), lats = pts.map(p => p.lat)
-      const span = Math.max(Math.max(...lngs) - Math.min(...lngs), Math.max(...lats) - Math.min(...lats), 0.5)
-      const zoom = Math.min(Math.max(3.5, 16 / span), 14)
-      return { center: [avgLng, avgLat], zoom }
+    if (stateFilter) {
+      const name = STATE_NAMES[stateFilter]
+      const v = name && STATE_VIEW[name]
+      if (v) return v
+      // Fallback: average advisor coords if bounds lookup misses.
+      const pts = markers.map(a => a.coords)
+      if (pts.length) {
+        const avgLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length
+        const avgLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length
+        return { center: [avgLng, avgLat], zoom: 5 }
+      }
     }
     return { center: [-96, 38], zoom: 1 }
   }, [markers, stateFilter, origin])
@@ -128,6 +158,8 @@ export default function DirectoryIndex({ advisors, stateList }) {
         .rsm-geography:focus { outline: none; }
         .rsm-zoomable-group { transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
         .map-marker { cursor: pointer; transition: r 0.2s ease; }
+        @keyframes badgePop { 0% { opacity: 0; transform: scale(0.85) translateY(4px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        .advisor-pop { animation: badgePop 0.16s cubic-bezier(0.34, 1.56, 0.64, 1); }
         @media (max-width: 1024px) {
           .dir-top { grid-template-columns: 1fr; }
           .cards { grid-template-columns: repeat(2, 1fr); }
@@ -240,40 +272,38 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
               {/* Map (large, right of filters) */}
               <div className="map-wrap">
-                <div
-                  style={{ position: 'relative' }}
-                  onMouseMove={e => {
-                    if (hovered) {
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      setHovered(h => h ? { ...h, x: e.clientX - rect.left, y: e.clientY - rect.top } : h)
-                    }
-                  }}
-                >
+                <div style={{ position: 'relative' }}>
                   <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
                     <ZoomableGroup center={mapView.center} zoom={mapView.zoom} minZoom={1} maxZoom={14}>
                       <Geographies geography={usTopo}>
                         {({ geographies }) =>
-                          geographies.map(geo => (
-                            <Geography
-                              key={geo.rsmKey}
-                              geography={geo}
-                              style={{
-                                default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
-                                hover:   { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
-                                pressed: { fill: '#e9eef2', outline: 'none' },
-                              }}
-                            />
-                          ))
+                          geographies.map(geo => {
+                            const nm = geo.properties && geo.properties.name
+                            const code = nm ? stateCode(nm) : ''
+                            const clickable = !stateFilter && code && stateList.some(([c]) => c === code)
+                            return (
+                              <Geography
+                                key={geo.rsmKey}
+                                geography={geo}
+                                onClick={clickable ? () => { setStateFilter(code); setHovered(null) } : undefined}
+                                style={{
+                                  default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none', cursor: clickable ? 'pointer' : 'default' },
+                                  hover:   { fill: clickable ? '#d6e3ec' : '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none', cursor: clickable ? 'pointer' : 'default' },
+                                  pressed: { fill: '#d6e3ec', outline: 'none' },
+                                }}
+                              />
+                            )
+                          })
                         }
                       </Geographies>
                       {markers.map(a => (
                         <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
                           <circle
                             className="map-marker"
-                            r={(stateFilter ? 5 : 4) / Math.sqrt(mapView.zoom)}
+                            r={(stateFilter ? 5 : 4) / mapView.zoom ** 0.7}
                             fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
                             stroke="white"
-                            strokeWidth={1 / Math.sqrt(mapView.zoom)}
+                            strokeWidth={1.2 / mapView.zoom ** 0.7}
                             opacity={0.85}
                             onMouseEnter={stateFilter ? (e) => {
                               const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
@@ -286,16 +316,22 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     </ZoomableGroup>
                   </ComposableMap>
 
-                  {/* Hover preview (state level only) */}
+                  {/* Hover preview (state level only) — clickable to the profile */}
                   {hovered && hovered.advisor && (
-                    <div style={{
-                      position: 'absolute', left: hovered.x + 14, top: hovered.y - 10,
-                      pointerEvents: 'none', zIndex: 5, background: 'white',
-                      border: `1px solid ${GRAY.border}`, borderRadius: '10px',
-                      boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: '10px 12px',
-                      width: '240px', maxWidth: 'calc(100% - 20px)',
-                      transform: hovered.x > 700 ? 'translateX(calc(-100% - 28px))' : 'none',
-                    }}>
+                    <a
+                      href={`/${hovered.advisor.slug}`}
+                      className="advisor-pop"
+                      onMouseLeave={() => setHovered(null)}
+                      style={{
+                        position: 'absolute', left: hovered.x + 14, top: hovered.y - 10,
+                        zIndex: 5, background: 'white', textDecoration: 'none', color: 'inherit',
+                        border: `1px solid ${GRAY.border}`, borderRadius: '10px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: '10px 12px',
+                        width: '240px', maxWidth: 'calc(100% - 20px)', cursor: 'pointer',
+                        display: 'block', transformOrigin: 'top left',
+                        ...(hovered.x > 700 ? { transform: 'translateX(calc(-100% - 28px))' } : null),
+                      }}
+                    >
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                         {hovered.advisor.photo
                           ? <img src={hovered.advisor.photo} alt="" width="44" height="44" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
@@ -304,9 +340,10 @@ export default function DirectoryIndex({ advisors, stateList }) {
                           <div style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 700, fontSize: '14px', color: GRAY.dark, lineHeight: 1.2 }}>{hovered.advisor.name}</div>
                           {hovered.advisor.title && <div style={{ fontSize: '12px', color: GRAY.text, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hovered.advisor.title}</div>}
                           {(hovered.advisor.city || hovered.advisor.stateCode) && <div style={{ fontSize: '12px', color: GRAY.text }}>{[hovered.advisor.city, hovered.advisor.stateCode].filter(Boolean).join(', ')}</div>}
+                          <div style={{ fontSize: '11px', color: NSSA.medium, marginTop: '4px', fontWeight: 600 }}>View profile →</div>
                         </div>
                       </div>
-                    </div>
+                    </a>
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap', margin: '0.75rem 0 0', fontSize: '12px', color: GRAY.text }}>
