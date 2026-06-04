@@ -460,7 +460,7 @@ export default function AdvisorProfile({ member, slug }) {
                 {web && <p style={{ fontSize: '15px', marginTop: 0, marginBottom: '16px' }}><a href={web} target="_blank" rel="nofollow noopener noreferrer" style={{ color: NSSA.medium, textDecoration: 'none' }}>{cleanWebsite(member.website)}</a></p>}
 
                 {/* Cert badges — linked to the relevant training pages */}
-                <div style={{ display: 'flex', gap: '14px', marginLeft: '-3px' }}>
+                <div style={{ display: 'flex', gap: '14px', marginLeft: '-4px' }}>
                   {hasNssa && <a href={NSSA_COURSE} aria-label="NSSA® Social Security training"><img src="/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
                   {hasIrmaa && <a href={IRMAA_COURSE} aria-label="IRMAACP™ Medicare training"><img src="/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
                 </div>
@@ -505,11 +505,12 @@ export default function AdvisorProfile({ member, slug }) {
             </p>
             <div className="valueprop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
               {[
-                ['Avoid Costly Social Security Claiming Mistakes', 'Navigating Social Security rules can be complex, and even small mistakes can cost you thousands of dollars in lost benefits. An NSSA® Certified Advisor ensures you make informed decisions and avoid costly errors.'],
-                ['Holistic Retirement Planning', 'An NSSA® Advisor integrates your Social Security strategy with your overall retirement plan, ensuring your assets work together to meet your financial goals and a clearer path to a secure future.'],
-                ['Guidance You Won\u2019t Get from the Social Security Office', 'The Social Security office provides information but doesn\u2019t offer personalized advice or strategies. An NSSA® Certified Advisor delivers tailored solutions based on your unique circumstances and goals.'],
-              ].map(([title, body]) => (
+                ['/social-security-mistakes.png', 'Avoid Costly Social Security Claiming Mistakes', 'Navigating Social Security rules can be complex, and even small mistakes can cost you thousands of dollars in lost benefits. An NSSA® Certified Advisor ensures you make informed decisions and avoid costly errors.'],
+                ['/holistic-financial-planning.png', 'Holistic Retirement Planning', 'An NSSA® Advisor integrates your Social Security strategy with your overall retirement plan, ensuring your assets work together to meet your financial goals and a clearer path to a secure future.'],
+                ['/social-security-guidance.png', 'Guidance You Won\u2019t Get from the Social Security Office', 'The Social Security office provides information but doesn\u2019t offer personalized advice or strategies. An NSSA® Certified Advisor delivers tailored solutions based on your unique circumstances and goals.'],
+              ].map(([icon, title, body]) => (
                 <div key={title}>
+                  <img src={icon} alt="" width="72" height="72" loading="lazy" style={{ width: '72px', height: '72px', objectFit: 'contain', display: 'block', margin: '0 auto 1.25rem' }} />
                   <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: GRAY.dark, marginBottom: '0.9rem', lineHeight: 1.3 }}>{title}</h3>
                   <p style={{ fontSize: '15px', color: GRAY.text, lineHeight: 1.6 }}>{body}</p>
                 </div>
