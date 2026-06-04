@@ -5,7 +5,7 @@
 
 import Head from 'next/head'
 import { useState, useMemo, useCallback } from 'react'
-import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps'
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
 import { STATE_NAMES, stateCode, coordsForZip, milesBetween } from '../lib/geo'
@@ -85,6 +85,25 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
   const hasFilters = name || stateFilter || designation || origin
 
+  // Map view: zoom to the selected state (or proximity origin) by averaging the
+  // relevant advisor coordinates; otherwise show the full national view.
+  const mapView = useMemo(() => {
+    const pts = markers.map(a => a.coords)
+    if (origin) {
+      return { center: [origin.lng, origin.lat], zoom: 4 }
+    }
+    if (stateFilter && pts.length) {
+      const avgLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length
+      const avgLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length
+      // Spread of points → rough zoom (tighter spread = more zoom).
+      const lngs = pts.map(p => p.lng), lats = pts.map(p => p.lat)
+      const span = Math.max(Math.max(...lngs) - Math.min(...lngs), Math.max(...lats) - Math.min(...lats), 0.5)
+      const zoom = Math.min(Math.max(2.2, 9 / span), 8)
+      return { center: [avgLng, avgLat], zoom }
+    }
+    return { center: [-96, 38], zoom: 1 }
+  }, [markers, stateFilter, origin])
+
   return (
     <>
       <Head>
@@ -101,7 +120,8 @@ export default function DirectoryIndex({ advisors, stateList }) {
       <style>{`
         .dir-top { display: grid; grid-template-columns: 320px 1fr; gap: 2rem; align-items: stretch; margin-bottom: 2.5rem; }
         .map-wrap { background: ${GRAY.bg}; border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: center; }
-        .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+        .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+        .cards > a { min-width: 0; }
         .filter-input { width: 100%; padding: 11px 13px; font-size: 15px; border: 1px solid ${GRAY.border}; border-radius: 8px; box-sizing: border-box; font-family: inherit; background: white; outline: none; }
         .filter-label { display:block; font-size: 13px; font-weight: 600; color: ${GRAY.dark}; margin-bottom: 6px; font-family: "Poppins", system-ui, sans-serif; }
         .rsm-geography:focus { outline: none; }
@@ -173,15 +193,15 @@ export default function DirectoryIndex({ advisors, stateList }) {
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label className="filter-label">Designation</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    {[['', 'All'], ['nssa', 'NSSA®'], ['irmaa', 'IRMAACP™']].map(([val, label]) => (
+                    {[['', 'All', '#7B4F9E'], ['nssa', 'NSSA®', NSSA.medium], ['irmaa', 'IRMAACP™', IRMAA.medium]].map(([val, label, activeColor]) => (
                       <button
                         key={val}
                         onClick={() => setDesignation(val)}
                         style={{
                           flex: 1, padding: '9px 6px', fontSize: '13px', fontWeight: 600,
                           fontFamily: '"Poppins", system-ui, sans-serif', cursor: 'pointer',
-                          borderRadius: '8px', border: `1.5px solid ${designation === val ? NSSA.medium : GRAY.border}`,
-                          background: designation === val ? NSSA.medium : 'white',
+                          borderRadius: '8px', border: `1.5px solid ${designation === val ? activeColor : GRAY.border}`,
+                          background: designation === val ? activeColor : 'white',
                           color: designation === val ? 'white' : GRAY.dark,
                         }}
                       >{label}</button>
@@ -218,26 +238,28 @@ export default function DirectoryIndex({ advisors, stateList }) {
               {/* Map (large, right of filters) */}
               <div className="map-wrap">
                 <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
-                  <Geographies geography={usTopo}>
-                    {({ geographies }) =>
-                      geographies.map(geo => (
-                        <Geography
-                          key={geo.rsmKey}
-                          geography={geo}
-                          style={{
-                            default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
-                            hover:   { fill: '#dbe6ee', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
-                            pressed: { fill: '#dbe6ee', outline: 'none' },
-                          }}
-                        />
-                      ))
-                    }
-                  </Geographies>
-                  {markers.map(a => (
-                    <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
-                      <circle r={4} fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium} stroke="white" strokeWidth={1} opacity={0.85} />
-                    </Marker>
-                  ))}
+                  <ZoomableGroup center={mapView.center} zoom={mapView.zoom} minZoom={1} maxZoom={8}>
+                    <Geographies geography={usTopo}>
+                      {({ geographies }) =>
+                        geographies.map(geo => (
+                          <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            style={{
+                              default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
+                              hover:   { fill: '#dbe6ee', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
+                              pressed: { fill: '#dbe6ee', outline: 'none' },
+                            }}
+                          />
+                        ))
+                      }
+                    </Geographies>
+                    {markers.map(a => (
+                      <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
+                        <circle r={4 / Math.sqrt(mapView.zoom)} fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium} stroke="white" strokeWidth={1 / Math.sqrt(mapView.zoom)} opacity={0.85} />
+                      </Marker>
+                    ))}
+                  </ZoomableGroup>
                 </ComposableMap>
                 <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap', margin: '0.75rem 0 0', fontSize: '12px', color: GRAY.text }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
