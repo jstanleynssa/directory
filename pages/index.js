@@ -9,7 +9,7 @@ import { ComposableMap, Geographies, Geography, Marker } from 'react-simple-maps
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
 import { STATE_NAMES, stateCode, coordsForZip, milesBetween } from '../lib/geo'
-import usTopo from '../lib/us-states-albers.json'
+import usTopo from '../lib/us-states.json'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
@@ -235,13 +235,16 @@ export default function DirectoryIndex({ advisors, stateList }) {
                   </Geographies>
                   {markers.map(a => (
                     <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
-                      <circle r={4} fill={a.irmaa && !a.nssa ? IRMAA.medium : NSSA.medium} stroke="white" strokeWidth={1} opacity={0.85} />
+                      <circle r={4} fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium} stroke="white" strokeWidth={1} opacity={0.85} />
                     </Marker>
                   ))}
                 </ComposableMap>
-                <p style={{ fontSize: '12px', color: GRAY.text, textAlign: 'center', margin: '0.75rem 0 0' }}>
-                  {markers.length.toLocaleString()} advisor{markers.length === 1 ? '' : 's'} shown on map
-                </p>
+                <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap', margin: '0.75rem 0 0', fontSize: '12px', color: GRAY.text }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7B4F9E', display: 'inline-block' }} />Both</span>
+                  <span>· {markers.length.toLocaleString()} of {filtered.length.toLocaleString()} shown on map</span>
+                </div>
               </div>
             </div>
 
