@@ -12,9 +12,12 @@ export default function App({ Component, pageProps }) {
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
         body {
-          font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+          font-family: "Open Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
           -webkit-font-smoothing: antialiased;
           background: #ffffff;
+        }
+        h1, h2, h3, h4, h5, h6 {
+          font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         }
         a { color: inherit; }
       `}</style>
