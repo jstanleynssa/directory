@@ -520,11 +520,11 @@ export default function AdvisorProfile({ member, slug }) {
         </section>
 
         {/* Footer */}
-        <footer style={{ background: TAN, padding: '1.75rem 2rem' }}>
+        <footer style={{ background: '#6b5e3d', borderTop: `10px solid ${TAN}`, padding: '1.75rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '2rem', flexWrap: 'wrap' }}>
             <a href={ROOT}><img src="/nssa-logo-white.png" alt="NSSA" style={{ height: '40px', width: 'auto' }} /></a>
             <span style={{ color: 'white', fontSize: '14px' }}>
-              © {new Date().getFullYear()} Social Security Professionals, LLC · 1201 Connecticut Ave NW Ste 531 Washington, DC 20036
+              © {new Date().getFullYear()} Social Security Professionals, LLC · 1763 Columbia Road NW Ste 175 Washington, DC 20009
             </span>
           </div>
         </footer>
