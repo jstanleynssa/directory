@@ -141,15 +141,15 @@ export default function StatePage({ stateNameProp, stateCodeProp, advisors, citi
 
         {/* SEO intro */}
         <section style={{ padding: '2rem 2rem 0' }}>
-          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-            <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1rem' }}>
+          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '1rem', maxWidth: '900px' }}>
               {stName} residents planning for retirement can connect with {advisors.length} {advisors.length === 1 ? 'professional' : 'professionals'} who hold
               the <a href={NSSA_COURSE} style={{ color: NSSA.medium }}>National Social Security Advisor (NSSA®)</a>
               {counts.irmaa ? <> or <a href={IRMAA_COURSE} style={{ color: IRMAA.medium }}>IRMAA Certified Planner (IRMAACP™)</a></> : null} certification.
               These advisors specialize in Social Security claiming strategies, Medicare enrollment, and IRMAA surcharge planning&nbsp;
               {cityPhrase ? <>for clients in {cityPhrase}, and communities across {stName}.</> : <>for clients across {stName}.</>}
             </p>
-            <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '0' }}>
+            <p style={{ fontSize: '16px', color: '#374151', lineHeight: 1.75, marginBottom: '0', maxWidth: '900px' }}>
               Whether you need help deciding when to claim Social Security benefits, coordinating spousal and survivor strategies,
               or managing Medicare premiums and income-related adjustments, the certified {stName} advisors below can guide your
               retirement income planning. Browse the directory and connect directly with a professional near you.
