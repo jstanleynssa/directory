@@ -31,6 +31,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const [origin, setOrigin] = useState(null) // {lat,lng} for proximity
   const [zipError, setZipError] = useState('')
   const [zipLoading, setZipLoading] = useState(false)
+  const [hovered, setHovered] = useState(null) // advisor under cursor (state-level only)
 
   // Resolve the visitor's zip via the lightweight API (keeps the big dataset server-side).
   const applyZip = useCallback(async () => {
@@ -90,15 +91,15 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const mapView = useMemo(() => {
     const pts = markers.map(a => a.coords)
     if (origin) {
-      return { center: [origin.lng, origin.lat], zoom: 4 }
+      return { center: [origin.lng, origin.lat], zoom: 6 }
     }
     if (stateFilter && pts.length) {
       const avgLng = pts.reduce((s, p) => s + p.lng, 0) / pts.length
       const avgLat = pts.reduce((s, p) => s + p.lat, 0) / pts.length
-      // Spread of points → rough zoom (tighter spread = more zoom).
+      // Spread of points → zoom (tighter spread = more zoom). Higher base for a closer view.
       const lngs = pts.map(p => p.lng), lats = pts.map(p => p.lat)
       const span = Math.max(Math.max(...lngs) - Math.min(...lngs), Math.max(...lats) - Math.min(...lats), 0.5)
-      const zoom = Math.min(Math.max(2.2, 9 / span), 8)
+      const zoom = Math.min(Math.max(3.5, 16 / span), 14)
       return { center: [avgLng, avgLat], zoom }
     }
     return { center: [-96, 38], zoom: 1 }
@@ -125,6 +126,8 @@ export default function DirectoryIndex({ advisors, stateList }) {
         .filter-input { width: 100%; padding: 11px 13px; font-size: 15px; border: 1px solid ${GRAY.border}; border-radius: 8px; box-sizing: border-box; font-family: inherit; background: white; outline: none; }
         .filter-label { display:block; font-size: 13px; font-weight: 600; color: ${GRAY.dark}; margin-bottom: 6px; font-family: "Poppins", system-ui, sans-serif; }
         .rsm-geography:focus { outline: none; }
+        .rsm-zoomable-group { transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+        .map-marker { cursor: pointer; transition: r 0.2s ease; }
         @media (max-width: 1024px) {
           .dir-top { grid-template-columns: 1fr; }
           .cards { grid-template-columns: repeat(2, 1fr); }
@@ -182,7 +185,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label className="filter-label">State</label>
-                  <select className="filter-input" value={stateFilter} onChange={e => setStateFilter(e.target.value)}>
+                  <select className="filter-input" value={stateFilter} onChange={e => { setStateFilter(e.target.value); setHovered(null) }}>
                     <option value="">All states</option>
                     {stateList.map(([code, label]) => (
                       <option key={code} value={code}>{label}</option>
@@ -237,35 +240,80 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
               {/* Map (large, right of filters) */}
               <div className="map-wrap">
-                <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
-                  <ZoomableGroup center={mapView.center} zoom={mapView.zoom} minZoom={1} maxZoom={8}>
-                    <Geographies geography={usTopo}>
-                      {({ geographies }) =>
-                        geographies.map(geo => (
-                          <Geography
-                            key={geo.rsmKey}
-                            geography={geo}
-                            style={{
-                              default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
-                              hover:   { fill: '#dbe6ee', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
-                              pressed: { fill: '#dbe6ee', outline: 'none' },
-                            }}
+                <div
+                  style={{ position: 'relative' }}
+                  onMouseMove={e => {
+                    if (hovered) {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      setHovered(h => h ? { ...h, x: e.clientX - rect.left, y: e.clientY - rect.top } : h)
+                    }
+                  }}
+                >
+                  <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
+                    <ZoomableGroup center={mapView.center} zoom={mapView.zoom} minZoom={1} maxZoom={14}>
+                      <Geographies geography={usTopo}>
+                        {({ geographies }) =>
+                          geographies.map(geo => (
+                            <Geography
+                              key={geo.rsmKey}
+                              geography={geo}
+                              style={{
+                                default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
+                                hover:   { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none' },
+                                pressed: { fill: '#e9eef2', outline: 'none' },
+                              }}
+                            />
+                          ))
+                        }
+                      </Geographies>
+                      {markers.map(a => (
+                        <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
+                          <circle
+                            className="map-marker"
+                            r={(stateFilter ? 5 : 4) / Math.sqrt(mapView.zoom)}
+                            fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
+                            stroke="white"
+                            strokeWidth={1 / Math.sqrt(mapView.zoom)}
+                            opacity={0.85}
+                            onMouseEnter={stateFilter ? (e) => {
+                              const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
+                              setHovered({ advisor: a, x: e.clientX - rect.left, y: e.clientY - rect.top })
+                            } : undefined}
+                            onMouseLeave={stateFilter ? () => setHovered(null) : undefined}
                           />
-                        ))
-                      }
-                    </Geographies>
-                    {markers.map(a => (
-                      <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
-                        <circle r={4 / Math.sqrt(mapView.zoom)} fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium} stroke="white" strokeWidth={1 / Math.sqrt(mapView.zoom)} opacity={0.85} />
-                      </Marker>
-                    ))}
-                  </ZoomableGroup>
-                </ComposableMap>
+                        </Marker>
+                      ))}
+                    </ZoomableGroup>
+                  </ComposableMap>
+
+                  {/* Hover preview (state level only) */}
+                  {hovered && hovered.advisor && (
+                    <div style={{
+                      position: 'absolute', left: hovered.x + 14, top: hovered.y - 10,
+                      pointerEvents: 'none', zIndex: 5, background: 'white',
+                      border: `1px solid ${GRAY.border}`, borderRadius: '10px',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: '10px 12px',
+                      width: '240px', maxWidth: 'calc(100% - 20px)',
+                      transform: hovered.x > 700 ? 'translateX(calc(-100% - 28px))' : 'none',
+                    }}>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        {hovered.advisor.photo
+                          ? <img src={hovered.advisor.photo} alt="" width="44" height="44" style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          : <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: NSSA.dark, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>{hovered.advisor.name[0]}</div>}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 700, fontSize: '14px', color: GRAY.dark, lineHeight: 1.2 }}>{hovered.advisor.name}</div>
+                          {hovered.advisor.title && <div style={{ fontSize: '12px', color: GRAY.text, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hovered.advisor.title}</div>}
+                          {(hovered.advisor.city || hovered.advisor.stateCode) && <div style={{ fontSize: '12px', color: GRAY.text }}>{[hovered.advisor.city, hovered.advisor.stateCode].filter(Boolean).join(', ')}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap', margin: '0.75rem 0 0', fontSize: '12px', color: GRAY.text }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7B4F9E', display: 'inline-block' }} />Both</span>
-                  <span>· {markers.length.toLocaleString()} of {filtered.length.toLocaleString()} shown on map</span>
+                  <span>· {markers.length.toLocaleString()} of {filtered.length.toLocaleString()} shown on map{stateFilter ? ' · hover a dot for details' : ''}</span>
                 </div>
               </div>
             </div>
