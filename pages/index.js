@@ -254,7 +254,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
               Find a Certified Advisor
             </h1>
             <p style={{ fontSize: '16px', color: GRAY.text, maxWidth: '760px', marginTop: '0.75rem', lineHeight: 1.6 }}>
-              Search our national directory of {advisors.length.toLocaleString()} NSSA® and IRMAACP™ certified professionals.<br />
+              Search our national directory of NSSA® and IRMAACP™ certified professionals.<br />
               Filter by name, state, designation, or distance from your ZIP code.
             </p>
           </div>
@@ -395,7 +395,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7B4F9E', display: 'inline-block' }} />Both</span>
-                  <span>· {visibleMapCount.toLocaleString()} of {filtered.length.toLocaleString()} shown on map{mapZoomed ? ' · hover a dot for details' : ''}</span>
+                  <span>{hasFilters ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map` : ''}{mapZoomed ? `${hasFilters ? ' · ' : '· '}hover a dot for details` : ''}</span>
                 </div>
               </div>
             </div>
@@ -404,8 +404,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <h2 style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontSize: '1.3rem', fontWeight: 700, color: GRAY.dark, margin: 0 }}>
-                  {filtered.length.toLocaleString()} {filtered.length === 1 ? 'Advisor' : 'Advisors'}
-                  {origin ? ` within ${radius} miles` : ''}
+                  {hasFilters
+                    ? <>{filtered.length.toLocaleString()} {filtered.length === 1 ? 'Advisor' : 'Advisors'}{origin ? ` within ${radius} miles` : ''}</>
+                    : 'Certified Advisors'}
                 </h2>
               </div>
 
