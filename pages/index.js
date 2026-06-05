@@ -177,6 +177,10 @@ export default function DirectoryIndex({ advisors, stateList }) {
   )
 
   const hasFilters = name || stateFilter || designation || origin
+  // Whether a *narrowing* filter is active — name, state, or ZIP proximity, but
+  // NOT the designation toggle. The advisor count is shown only when one of
+  // these is set, so toggling NSSA®/IRMAACP®/All alone never reveals the total.
+  const hasNarrowingFilter = !!(name || stateFilter || origin)
 
   // Map view: zoom to the selected state by its geographic bounds (consistent
   // regardless of advisor distribution), or to the proximity origin.
@@ -395,7 +399,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7B4F9E', display: 'inline-block' }} />Both</span>
-                  <span>{hasFilters ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map` : ''}{mapZoomed ? `${hasFilters ? ' · ' : '· '}hover a dot for details` : ''}</span>
+                  <span>{hasNarrowingFilter ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map` : ''}{mapZoomed ? `${hasNarrowingFilter ? ' · ' : '· '}hover a dot for details` : ''}</span>
                 </div>
               </div>
             </div>
@@ -404,7 +408,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                 <h2 style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontSize: '1.3rem', fontWeight: 700, color: GRAY.dark, margin: 0 }}>
-                  {hasFilters
+                  {hasNarrowingFilter
                     ? <>{filtered.length.toLocaleString()} {filtered.length === 1 ? 'Advisor' : 'Advisors'}{origin ? ` within ${radius} miles` : ''}</>
                     : 'Certified Advisors'}
                 </h2>
