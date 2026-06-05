@@ -8,6 +8,7 @@
 // server-prerendered (it throws "Invalid attempt to destructure non-iterable
 // instance" during static export), and the map adds no SEO value — the page's
 // heading, filters, and results grid still prerender for search engines.
+// redeploy test
 
 import Head from 'next/head'
 import dynamic from 'next/dynamic'
