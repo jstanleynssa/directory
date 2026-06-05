@@ -70,6 +70,52 @@ export default function AdvisorMap({
   // Stroke widths / dot radii shrink with zoom so they look right when scaled.
   const z = Math.pow(zoom, 0.7)
 
+  // ── Jitter overlapping dots ──────────────────────────────────────────────
+  // Advisors in the same ZIP/city project to the exact same pixel and would
+  // stack into one dot (e.g. 3 advisors in Cheyenne → looks like 1). Group by
+  // rounded projected position; for any group >1, fan the members out into a
+  // small ring around the true point so each is individually visible/clickable.
+  // The offset is kept small (and scaled down by zoom) so the dots still read
+  // as "that city" rather than implying spread-out locations.
+  const jitteredMarkers = useMemo(() => {
+    // 1) Project everyone; drop anything unprojectable (e.g. PR/territory ZIPs).
+    const projected = []
+    for (const a of mapMarkers) {
+      const p = projection([a.coords.lng, a.coords.lat])
+      if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
+      projected.push({ a, px: p[0], py: p[1] })
+    }
+    // 2) Group by rounded pixel position (1px buckets — same ZIP lands together).
+    const groups = new Map()
+    for (const m of projected) {
+      const key = `${Math.round(m.px)},${Math.round(m.py)}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(m)
+    }
+    // 3) Emit positions. Singletons stay put; groups fan into a ring.
+    const out = []
+    // Base ring radius in *map* units; divided by z so it stays tight when the
+    // map is zoomed in (where each unit covers more screen).
+    const baseRadius = 7 / z
+    for (const members of groups.values()) {
+      if (members.length === 1) {
+        out.push({ a: members[0].a, x: members[0].px, y: members[0].py })
+        continue
+      }
+      // Grow the ring slightly with group size so dots don't crowd.
+      const radius = baseRadius * (1 + Math.min(members.length, 8) * 0.12)
+      members.forEach((m, i) => {
+        const angle = (2 * Math.PI * i) / members.length - Math.PI / 2 // start at top
+        out.push({
+          a: m.a,
+          x: m.px + radius * Math.cos(angle),
+          y: m.py + radius * Math.sin(angle),
+        })
+      })
+    }
+    return out
+  }, [mapMarkers, z])
+
   return (
     <svg
       viewBox={`0 0 ${MAP_W} ${MAP_H}`}
@@ -102,17 +148,17 @@ export default function AdvisorMap({
           )
         })}
 
-        {/* Advisor dots */}
-        {mapMarkers.map(a => {
-          const p = projection([a.coords.lng, a.coords.lat])
-          if (!p || !isFinite(p[0]) || !isFinite(p[1])) return null
+        {/* Advisor dots — with jitter so advisors sharing a coordinate
+            (e.g. several in the same ZIP/city) fan out into a small ring
+            instead of stacking into a single dot. */}
+        {jitteredMarkers.map(({ a, x, y }) => {
           const visible = passesDesignation(a)
           return (
             <circle
               key={a.slug}
               className="map-marker"
-              cx={p[0]}
-              cy={p[1]}
+              cx={x}
+              cy={y}
               r={(mapZoomed ? 5 : 4) / z}
               fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
               stroke="white"
