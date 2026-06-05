@@ -8,7 +8,6 @@
 // server-prerendered (it throws "Invalid attempt to destructure non-iterable
 // instance" during static export), and the map adds no SEO value — the page's
 // heading, filters, and results grid still prerender for search engines.
-// redeploy test
 
 import Head from 'next/head'
 import dynamic from 'next/dynamic'
@@ -239,7 +238,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                 ['About Us', `${ROOT}/about`],
                 ['Social Security Training', NSSA_COURSE],
                 ['IRMAA Medicare Training', IRMAA_COURSE],
-                ['Find an Advisor', `${ROOT}/find-nssa`],
+                ['Find an Advisor', SITE + '/'],
                 ['Contact Us', `${ROOT}/contact`],
               ].map(([label, href]) => (
                 <a key={label} href={href} style={{ color: GRAY.dark, textDecoration: 'none' }}>{label}</a>
