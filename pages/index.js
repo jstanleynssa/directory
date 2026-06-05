@@ -27,8 +27,10 @@ const AdvisorMap = dynamic(() => import('../components/AdvisorMap'), {
     </div>
   ),
 })
-// Same fitted-view helper the map uses, so the caption/zoom math matches.
-import { getStateView } from '../components/AdvisorMap'
+// Same fitted-view helper the map uses — imported from lib/stateView (which is
+// SSR-safe: no react-simple-maps). Importing it from AdvisorMap would pull the
+// map library into the server build and re-break the prerender.
+import { getStateView } from '../lib/stateView'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
