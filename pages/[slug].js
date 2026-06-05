@@ -134,23 +134,14 @@ export async function getStaticPaths() {
   const members = await fetchDirectoryMembers()
   const { byEmail } = buildSlugIndex(members)
 
-  // ── POC SCOPE ─────────────────────────────────────────────────────────────
-  // Only pre-build a small hardcoded test set so we can validate the template
-  // across edge cases (messy title, single vs dual badge, missing website)
-  // without generating all ~1,700 pages. To go full directory later, delete
-  // this block and use: const paths = [...byEmail.values()].map(...)
-  const POC_EMAILS = [
-    'jason@dancing-tree.org',     // your test profile (dual cert)
-    'jstanley@nssapros.com',      // admin / dual cert
-    'joy@ajoytoenroll.com',       // Joy Cheney — dual cert, real bio
-  ]
-  const paths = POC_EMAILS
-    .filter(email => byEmail.has(email))
-    .map(email => ({ params: { slug: byEmail.get(email) } }))
+  // ── FULL DIRECTORY BUILD ────────────────────────────────────────────────
+  // Pre-build a page for every advisor who passes the inclusion gate
+  // (active + certified + non-empty bio), enforced in fetchDirectoryMembers().
+  const paths = [...byEmail.values()].map(slug => ({ params: { slug } }))
   // ──────────────────────────────────────────────────────────────────────────
 
-  // fallback:'blocking' means any other advisor URL still renders on-demand
-  // (and gets cached) if visited directly — but only the POC set is prebuilt.
+  // fallback:'blocking' still renders any not-yet-built slug on demand (e.g. a
+  // newly-certified advisor before the next rebuild), then caches it.
   return { paths, fallback: 'blocking' }
 }
 
