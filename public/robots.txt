@@ -1,0 +1,5 @@
+# directory.nssapros.com — NSSA Advisor Directory
+User-agent: *
+Allow: /
+
+Sitemap: https://directory.nssapros.com/sitemap.xml
