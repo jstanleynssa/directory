@@ -1,82 +1,139 @@
 // components/AdvisorMap.js
-// The interactive US map (react-simple-maps). CLIENT-ONLY: imported into
-// pages/index.js via next/dynamic with { ssr: false }.
+// Self-contained interactive US map, rendered directly with d3-geo (NO
+// react-simple-maps). CLIENT-ONLY: imported into pages/index.js via
+// next/dynamic({ ssr: false }).
 //
-// WHY CLIENT-ONLY: react-simple-maps (ComposableMap/ZoomableGroup) is not safe
-// to run during Next.js static prerender — it destructures browser-only values
-// at build time and throws "Invalid attempt to destructure non-iterable
-// instance". The map is purely interactive (zoom/hover/click) and adds no SEO
-// value, so deferring it to the browser is correct.
+// WHY no react-simple-maps: that library (v3, 2022) crashes against React 18 /
+// modern d3 with "Invalid attempt to destructure non-iterable instance", both
+// at build-time prerender and at client runtime. Since the app already depends
+// on d3-geo + topojson-client, we render the states as plain SVG <path> and the
+// advisors as <circle>, and implement zoom/pan as an animated SVG <g transform>.
+// This removes the fragile dependency entirely while preserving every
+// interaction: zoom-to-state on click, ZIP-proximity zoom, hover badges,
+// click-to-navigate, designation cross-fade, and the +/- zoom controls.
 //
-// CRITICAL: this is the ONLY module that imports react-simple-maps. Nothing
-// server-reachable may import from here, or react-simple-maps gets pulled into
-// the server build and the prerender error returns. The view math lives in
-// lib/stateView.js (no react-simple-maps) so index.js can use it SSR-side.
-// Redeploy test
+// Drop-in: same props as the previous react-simple-maps version, so index.js
+// needs no changes.
 
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
+import { useMemo } from 'react'
+import { feature } from 'topojson-client'
+import { geoAlbersUsa, geoPath } from 'd3-geo'
 import { stateCode } from '../lib/geo'
 import usTopo from '../lib/us-states.json'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
 
+// Must match stateView.js (the zoom-fit math is computed against these dims).
+const MAP_W = 975, MAP_H = 610
+
+// One shared projection + path generator, identical to what react-simple-maps
+// used by default (geoAlbersUsa translated to the map center). Built once.
+const projection = geoAlbersUsa().translate([MAP_W / 2, MAP_H / 2])
+const pathGen = geoPath(projection)
+
+// Pre-extract the state features + their rendered SVG path strings once.
+const STATE_FEATURES = (() => {
+  try {
+    const fc = feature(usTopo, usTopo.objects.states)
+    return fc.features.map(f => ({
+      name: (f.properties && f.properties.name) || '',
+      d: pathGen(f) || '',
+    })).filter(s => s.d)
+  } catch (e) {
+    return []
+  }
+})()
+
 export default function AdvisorMap({
   mapView, zoomNudge, mapZoomed, mapMarkers, passesDesignation,
   stateFilter, stateList, setStateFilter, setHovered,
   showPreview, hidePreview, onMarkerClick,
 }) {
+  // Effective zoom = the fitted view's zoom × the user's +/- nudge, clamped.
+  const zoom = Math.min(Math.max(mapView.zoom * zoomNudge, 1), 16)
+
+  // Project the geographic center [lng, lat] to pixel space, then build a
+  // transform that scales around that point and recentres it in the viewport.
+  // This reproduces react-simple-maps' ZoomableGroup behavior with a plain
+  // SVG <g transform>, animated via CSS transition.
+  const transform = useMemo(() => {
+    const c = projection(mapView.center) // -> [px, py] or null
+    const px = (c && isFinite(c[0])) ? c[0] : MAP_W / 2
+    const py = (c && isFinite(c[1])) ? c[1] : MAP_H / 2
+    // translate the focal point to viewport center, scaled by zoom
+    const tx = MAP_W / 2 - px * zoom
+    const ty = MAP_H / 2 - py * zoom
+    return `translate(${tx} ${ty}) scale(${zoom})`
+  }, [mapView.center, zoom])
+
+  // Stroke widths / dot radii shrink with zoom so they look right when scaled.
+  const z = Math.pow(zoom, 0.7)
+
   return (
-    <ComposableMap projection="geoAlbersUsa" width={975} height={610} className="rsm-svg" style={{ width: '100%', height: 'auto' }}>
-      <ZoomableGroup center={mapView.center} zoom={Math.min(Math.max(mapView.zoom * zoomNudge, 1), 16)} minZoom={1} maxZoom={16}>
-        <Geographies geography={usTopo}>
-          {({ geographies }) =>
-            geographies.map(geo => {
-              const nm = geo.properties && geo.properties.name
-              const code = nm ? stateCode(nm) : ''
-              const clickable = !stateFilter && code && stateList.some(([c]) => c === code)
-              return (
-                <Geography
-                  key={geo.rsmKey}
-                  geography={geo}
-                  onClick={clickable ? () => { setStateFilter(code); setHovered(null) } : undefined}
-                  style={{
-                    default: { fill: '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none', cursor: clickable ? 'pointer' : 'default' },
-                    hover:   { fill: clickable ? '#d6e3ec' : '#e9eef2', stroke: 'white', strokeWidth: 0.75, outline: 'none', cursor: clickable ? 'pointer' : 'default' },
-                    pressed: { fill: '#d6e3ec', outline: 'none' },
-                  }}
-                />
-              )
-            })
-          }
-        </Geographies>
-        {mapMarkers.map(a => {
-          const visible = passesDesignation(a)
+    <svg
+      viewBox={`0 0 ${MAP_W} ${MAP_H}`}
+      className="rsm-svg"
+      style={{ width: '100%', height: 'auto', display: 'block' }}
+      role="img"
+      aria-label="Map of NSSA and IRMAACP certified advisors across the United States"
+    >
+      <g className="map-zoom-group" transform={transform} style={{ transition: 'transform 0.7s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+        {/* States */}
+        {STATE_FEATURES.map(s => {
+          const code = s.name ? stateCode(s.name) : ''
+          const clickable = !stateFilter && code && stateList.some(([c]) => c === code)
           return (
-            <Marker key={a.slug} coordinates={[a.coords.lng, a.coords.lat]}>
-              <circle
-                className="map-marker"
-                r={(mapZoomed ? 5 : 4) / mapView.zoom ** 0.7}
-                fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
-                stroke="white"
-                strokeWidth={1.2 / mapView.zoom ** 0.7}
-                style={{
-                  opacity: visible ? 0.85 : 0,
-                  transition: 'opacity 0.35s ease-in-out',
-                  pointerEvents: visible && mapZoomed ? 'auto' : 'none',
-                  cursor: mapZoomed ? 'pointer' : 'default',
-                }}
-                onClick={visible && mapZoomed ? () => onMarkerClick(a) : undefined}
-                onMouseEnter={visible && mapZoomed ? (e) => {
-                  const rect = e.currentTarget.ownerSVGElement.parentElement.getBoundingClientRect()
-                  showPreview(a, e.clientX - rect.left, e.clientY - rect.top)
-                } : undefined}
-                onMouseLeave={visible && mapZoomed ? hidePreview : undefined}
-              />
-            </Marker>
+            <path
+              key={s.name}
+              d={s.d}
+              onClick={clickable ? () => { setStateFilter(code); setHovered(null) } : undefined}
+              style={{
+                fill: '#e9eef2',
+                stroke: 'white',
+                strokeWidth: 0.75 / z,
+                outline: 'none',
+                cursor: clickable ? 'pointer' : 'default',
+                transition: 'fill 0.15s ease',
+              }}
+              onMouseEnter={clickable ? (e) => { e.currentTarget.style.fill = '#d6e3ec' } : undefined}
+              onMouseLeave={clickable ? (e) => { e.currentTarget.style.fill = '#e9eef2' } : undefined}
+            />
           )
         })}
-      </ZoomableGroup>
-    </ComposableMap>
+
+        {/* Advisor dots */}
+        {mapMarkers.map(a => {
+          const p = projection([a.coords.lng, a.coords.lat])
+          if (!p || !isFinite(p[0]) || !isFinite(p[1])) return null
+          const visible = passesDesignation(a)
+          return (
+            <circle
+              key={a.slug}
+              className="map-marker"
+              cx={p[0]}
+              cy={p[1]}
+              r={(mapZoomed ? 5 : 4) / z}
+              fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
+              stroke="white"
+              strokeWidth={1.2 / z}
+              style={{
+                opacity: visible ? 0.85 : 0,
+                transition: 'opacity 0.35s ease-in-out',
+                pointerEvents: visible && mapZoomed ? 'auto' : 'none',
+                cursor: mapZoomed ? 'pointer' : 'default',
+              }}
+              onClick={visible && mapZoomed ? () => onMarkerClick(a) : undefined}
+              onMouseEnter={visible && mapZoomed ? (e) => {
+                const svg = e.currentTarget.ownerSVGElement
+                const rect = svg.parentElement.getBoundingClientRect()
+                showPreview(a, e.clientX - rect.left, e.clientY - rect.top)
+              } : undefined}
+              onMouseLeave={visible && mapZoomed ? hidePreview : undefined}
+            />
+          )
+        })}
+      </g>
+    </svg>
   )
 }
