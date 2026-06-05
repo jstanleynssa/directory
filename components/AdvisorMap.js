@@ -12,6 +12,7 @@
 // server-reachable may import from here, or react-simple-maps gets pulled into
 // the server build and the prerender error returns. The view math lives in
 // lib/stateView.js (no react-simple-maps) so index.js can use it SSR-side.
+// Redeploy test
 
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from 'react-simple-maps'
 import { stateCode } from '../lib/geo'
