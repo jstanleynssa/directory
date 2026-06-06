@@ -44,13 +44,21 @@ export default async function handler(req, res) {
   }
 
   const results = []
-  for (const slug of slugs) {
+
+  // Always also revalidate the directory INDEX ('/') — it carries the full
+  // advisor list (names, cities, slugs) for the map + search, built at build
+  // time. A profile edit changes that data, so the index must refresh too or
+  // search/results show stale info and link to an old slug. (The individual
+  // profile pages are covered by the slugs passed in.)
+  const pathsToRevalidate = ['/', ...slugs.map(s => '/' + s)]
+
+  for (const path of pathsToRevalidate) {
     try {
-      await res.revalidate('/' + slug)
-      results.push({ slug, revalidated: true })
+      await res.revalidate(path)
+      results.push({ path, revalidated: true })
     } catch (err) {
-      // A revalidate failure for one slug shouldn't fail the whole call.
-      results.push({ slug, revalidated: false, error: err.message })
+      // A revalidate failure for one path shouldn't fail the whole call.
+      results.push({ path, revalidated: false, error: err.message })
     }
   }
 
