@@ -16,6 +16,7 @@
 // caller should pass BOTH the old and the new slug (comma-separated or repeated)
 // so the stale page is revalidated (it will 404 or redirect) and the new page
 // is built. This route accepts one or many slugs.
+// Redeploy
 
 export default async function handler(req, res) {
   // Accept GET or POST; secret may come from query or body.
