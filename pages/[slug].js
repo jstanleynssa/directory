@@ -535,7 +535,7 @@ export default function AdvisorProfile({ member, slug }) {
                         alt={photoAlt}
                         width="280" height="294"
                         loading="eager" fetchpriority="high"
-                        style={{ width: '100%', height: 'auto', aspectRatio: '280 / 294', objectFit: 'cover', borderRadius: '4px', display: 'block' }}
+                        style={{ width: '100%', height: 'auto', aspectRatio: '280 / 294', objectFit: 'cover', objectPosition: 'top', borderRadius: '4px', display: 'block' }}
                         onError={(e) => {
                           const fb = e.currentTarget.nextElementSibling
                           e.currentTarget.style.display = 'none'
