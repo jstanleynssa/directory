@@ -16,11 +16,26 @@
 // caller should pass BOTH the old and the new slug (comma-separated or repeated)
 // so the stale page is revalidated (it will 404 or redirect) and the new page
 // is built. This route accepts one or many slugs.
-// Redeploy
 
 export default async function handler(req, res) {
   // Accept GET or POST; secret may come from query or body.
   const secret = req.query.secret || (req.body && req.body.secret)
+
+  // ── TEMPORARY DEBUG — remove after diagnosing the 401 ──────────────────
+  // Hit /api/revalidate?debug=1&secret=YOUR_SECRET to inspect what the server
+  // actually sees. NEVER returns the secret itself — only presence/lengths/match.
+  if (req.query.debug === '1') {
+    const env = process.env.REVALIDATE_SECRET
+    return res.status(200).json({
+      envPresent: !!env,
+      envLength: env ? env.length : 0,
+      gotSecret: !!secret,
+      gotLength: secret ? String(secret).length : 0,
+      match: secret === env,
+    })
+  }
+  // ── END TEMPORARY DEBUG ────────────────────────────────────────────────
+
   if (!process.env.REVALIDATE_SECRET || secret !== process.env.REVALIDATE_SECRET) {
     return res.status(401).json({ ok: false, error: 'Invalid or missing secret' })
   }
