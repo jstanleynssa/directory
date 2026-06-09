@@ -45,8 +45,23 @@ const STATE_FEATURES = (() => {
   }
 })()
 
+// Resolve the fill color for a dot given the active designation filter.
+//   'nssa'  → all visible dots are NSSA blue (dual-cert advisors pass this
+//             filter too, but we paint them blue to match the filter context)
+//   'irmaa' → all visible dots are IRMAA red (same logic)
+//   'both'  → all visible dots are purple (they're all dual-cert by definition)
+//   ''      → tri-color: purple for dual-cert, red for IRMAA-only, blue for NSSA
+function dotColor(a, designation) {
+  if (designation === 'nssa')  return NSSA.medium
+  if (designation === 'irmaa') return IRMAA.medium
+  if (designation === 'both')  return '#7B4F9E'
+  // Default (All): color by cert type
+  return a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium
+}
+
 export default function AdvisorMap({
   mapView, zoomNudge, mapZoomed, mapMarkers, passesDesignation,
+  designation,
   stateFilter, stateList, setStateFilter, setHovered,
   showPreview, hidePreview, onMarkerClick,
 }) {
@@ -150,7 +165,9 @@ export default function AdvisorMap({
 
         {/* Advisor dots — with jitter so advisors sharing a coordinate
             (e.g. several in the same ZIP/city) fan out into a small ring
-            instead of stacking into a single dot. */}
+            instead of stacking into a single dot. Dot color reflects the
+            active designation filter: solid blue for NSSA-only view, solid
+            red for IRMAA-only, solid purple for Both, tri-color for All. */}
         {jitteredMarkers.map(({ a, x, y }) => {
           const visible = passesDesignation(a)
           return (
@@ -160,12 +177,12 @@ export default function AdvisorMap({
               cx={x}
               cy={y}
               r={(mapZoomed ? 5 : 4) / z}
-              fill={a.nssa && a.irmaa ? '#7B4F9E' : a.irmaa ? IRMAA.medium : NSSA.medium}
+              fill={dotColor(a, designation)}
               stroke="white"
               strokeWidth={1.2 / z}
               style={{
                 opacity: visible ? 0.85 : 0,
-                transition: 'opacity 0.35s ease-in-out',
+                transition: 'opacity 0.35s ease-in-out, fill 0.25s ease-in-out',
                 pointerEvents: visible && mapZoomed ? 'auto' : 'none',
                 cursor: mapZoomed ? 'pointer' : 'default',
               }}
