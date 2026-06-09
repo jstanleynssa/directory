@@ -34,6 +34,7 @@ import { getStateView } from '../lib/stateView'
 
 const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
+const BOTH  = '#7B4F9E'
 const GRAY  = { text: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb', dark: '#1f2937' }
 const TAN   = '#b3a584'
 const ROOT  = 'https://nssapros.com'
@@ -58,7 +59,7 @@ function Silhouette({ size }) {
 export default function DirectoryIndex({ advisors, stateList }) {
   const [name, setName] = useState('')
   const [stateFilter, setStateFilter] = useState('')
-  const [designation, setDesignation] = useState('') // '', 'nssa', 'irmaa'
+  const [designation, setDesignation] = useState('') // '', 'nssa', 'irmaa', 'both'
   const [zip, setZip] = useState('')
   const [radius, setRadius] = useState(50)
   const [origin, setOrigin] = useState(null) // {lat,lng} for proximity
@@ -117,8 +118,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
     const q = name.trim().toLowerCase()
     let list = advisors.filter(a => {
       if (stateFilter && a.stateCode !== stateFilter) return false
-      if (designation === 'nssa' && !a.nssa) return false
+      if (designation === 'nssa'  && !a.nssa) return false
       if (designation === 'irmaa' && !a.irmaa) return false
+      if (designation === 'both'  && !(a.nssa && a.irmaa)) return false
       if (q) {
         const hay = `${a.name} ${a.company || ''} ${a.city || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
@@ -165,8 +167,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
   }, [advisors, name, stateFilter, origin, radius])
 
   const passesDesignation = useCallback((a) => {
-    if (designation === 'nssa') return !!a.nssa
+    if (designation === 'nssa')  return !!a.nssa
     if (designation === 'irmaa') return !!a.irmaa
+    if (designation === 'both')  return !!(a.nssa && a.irmaa)
     return true
   }, [designation])
 
@@ -290,17 +293,23 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label className="filter-label">Designation</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {[['', 'All', '#7B4F9E'], ['nssa', 'NSSA®', NSSA.medium], ['irmaa', 'IRMAACP™', IRMAA.medium]].map(([val, label, activeColor]) => (
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {[
+                      ['',      'All',       '#9ca3af'],
+                      ['nssa',  'NSSA®',     NSSA.medium],
+                      ['irmaa', 'IRMAACP™',  IRMAA.medium],
+                      ['both',  'Both',      BOTH],
+                    ].map(([val, label, activeColor]) => (
                       <button
                         key={val}
                         onClick={() => setDesignation(val)}
                         style={{
-                          flex: 1, padding: '9px 6px', fontSize: '13px', fontWeight: 600,
+                          flex: 1, padding: '9px 4px', fontSize: '12px', fontWeight: 600,
                           fontFamily: '"Poppins", system-ui, sans-serif', cursor: 'pointer',
                           borderRadius: '8px', border: `1.5px solid ${designation === val ? activeColor : GRAY.border}`,
                           background: designation === val ? activeColor : 'white',
                           color: designation === val ? 'white' : GRAY.dark,
+                          transition: 'background 0.15s, border-color 0.15s, color 0.15s',
                         }}
                       >{label}</button>
                     ))}
@@ -395,11 +404,16 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     </a>
                   )}
                 </div>
+
+                {/* Map legend */}
                 <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap', margin: '0.75rem 0 0', fontSize: '12px', color: GRAY.text }}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7B4F9E', display: 'inline-block' }} />Both</span>
-                  <span>{hasNarrowingFilter ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map` : ''}{mapZoomed ? `${hasNarrowingFilter ? ' · ' : '· '}hover a dot for details` : ''}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: BOTH, display: 'inline-block' }} />Both</span>
+                  <span>
+                    {hasNarrowingFilter ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map` : ''}
+                    {mapZoomed ? `${hasNarrowingFilter ? ' · ' : '· '}hover a dot for details` : ''}
+                  </span>
                 </div>
               </div>
             </div>
