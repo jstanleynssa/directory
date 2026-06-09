@@ -15,7 +15,7 @@ import { useRouter } from 'next/router'
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
-import { STATE_NAMES, stateCode, coordsForZip, milesBetween } from '../lib/geo'
+import { STATE_NAMES, TERRITORY_CODES, stateCode, coordsForZip, milesBetween } from '../lib/geo'
 
 // Client-only map (react-simple-maps is not SSR-safe). A lightweight placeholder
 // keeps layout stable until the map hydrates in the browser.
@@ -305,12 +305,21 @@ export default function DirectoryIndex({ advisors, stateList }) {
                 </div>
 
                 <div style={{ marginBottom: '1.25rem' }}>
-                  <label className="filter-label">State</label>
+                  <label className="filter-label">State or Territory</label>
                   <select className="filter-input" value={stateFilter} onChange={e => { setStateFilter(e.target.value); setHovered(null) }}>
-                    <option value="">All states</option>
-                    {stateList.map(([code, label]) => (
-                      <option key={code} value={code}>{label}</option>
-                    ))}
+                    <option value="">All states &amp; territories</option>
+                    <optgroup label="States">
+                      {stateList.states.map(([code, label]) => (
+                        <option key={code} value={code}>{label}</option>
+                      ))}
+                    </optgroup>
+                    {stateList.territories.length > 0 && (
+                      <optgroup label="Territories">
+                        {stateList.territories.map(([code, label]) => (
+                          <option key={code} value={code}>{label}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
@@ -377,7 +386,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     passesDesignation={passesDesignation}
                     designation={designation}
                     stateFilter={stateFilter}
-                    stateList={stateList}
+                    stateList={stateList.states}
                     setStateFilter={setStateFilter}
                     setHovered={setHovered}
                     showPreview={showPreview}
@@ -432,11 +441,18 @@ export default function DirectoryIndex({ advisors, stateList }) {
 
                 {/* Map legend */}
                 <div style={{ display: 'flex', gap: '18px', justifyContent: 'center', flexWrap: 'wrap', margin: '0.75rem 0 0', fontSize: '12px', color: GRAY.text }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: BOTH, display: 'inline-block' }} />Both</span>
+                  {(!stateFilter || !TERRITORY_CODES.has(stateFilter) || stateFilter === 'PR') && <>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: NSSA.medium, display: 'inline-block' }} />NSSA®</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: IRMAA.medium, display: 'inline-block' }} />IRMAACP™</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><span style={{ width: '10px', height: '10px', borderRadius: '50%', background: BOTH, display: 'inline-block' }} />Both</span>
+                  </>}
+                  {stateFilter && TERRITORY_CODES.has(stateFilter) && stateFilter !== 'PR' && (
+                    <span style={{ fontStyle: 'italic' }}>Territory advisors appear in the results below — not shown on map</span>
+                  )}
                   <span>
-                    {hasNarrowingFilter ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map` : ''}
+                    {hasNarrowingFilter && (!stateFilter || !TERRITORY_CODES.has(stateFilter) || stateFilter === 'PR')
+                      ? `· ${visibleMapCount.toLocaleString()} of ${filtered.length.toLocaleString()} shown on map`
+                      : ''}
                     {mapZoomed ? `${hasNarrowingFilter ? ' · ' : '· '}hover a dot for details` : ''}
                   </span>
                 </div>
@@ -535,8 +551,12 @@ export async function getStaticProps() {
 
   // Lightweight client payload (no bios, no big fields).
   const advisors = listed.map(m => {
-    const coords = coordsForZip(m.zip)
     const code = stateCode(m.state)
+    // Territory advisors (GU, MP, AS, VI) are outside the geoAlbersUsa
+    // projection — give them null coords so they never attempt to render as
+    // map dots. PR is in the AlbersUSA inset so it gets real coords.
+    const isOffMapTerritory = code && TERRITORY_CODES.has(code) && code !== 'PR'
+    const coords = isOffMapTerritory ? null : coordsForZip(m.zip)
     return {
       slug: byEmail.get(m.email),
       name: `${m.first_name || ''} ${m.last_name || ''}`.trim(),
@@ -550,11 +570,17 @@ export async function getStaticProps() {
     }
   })
 
-  // State dropdown: only states that actually have advisors, alphabetized by label.
+  // State dropdown: split into states and territories, each alphabetized.
   const codes = [...new Set(advisors.map(a => a.stateCode).filter(Boolean))]
-  const stateList = codes
-    .map(code => [code, STATE_NAMES[code] || code])
+  const states = codes
+    .filter(c => !TERRITORY_CODES.has(c))
+    .map(c => [c, STATE_NAMES[c] || c])
     .sort((a, b) => a[1].localeCompare(b[1]))
+  const territories = codes
+    .filter(c => TERRITORY_CODES.has(c))
+    .map(c => [c, STATE_NAMES[c] || c])
+    .sort((a, b) => a[1].localeCompare(b[1]))
+  const stateList = { states, territories }
 
   return { props: { advisors, stateList }, revalidate: 86400 }
 }
