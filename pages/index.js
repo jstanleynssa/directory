@@ -351,6 +351,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     mapZoomed={mapZoomed}
                     mapMarkers={mapMarkers}
                     passesDesignation={passesDesignation}
+                    designation={designation}
                     stateFilter={stateFilter}
                     stateList={stateList}
                     setStateFilter={setStateFilter}
