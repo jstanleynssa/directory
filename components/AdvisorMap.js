@@ -57,7 +57,7 @@ function dotColor(a, designation) {
 }
 
 export default function AdvisorMap({
-  mapView, zoomNudge, mapZoomed, mapMarkers, passesDesignation,
+  mapView, zoomNudge, mapZoomed, mapMarkers, allMarkers, passesDesignation,
   designation,
   stateFilter, stateList, setStateFilter, setHovered,
   showPreview, hidePreview, onMarkerClick,
@@ -70,18 +70,30 @@ export default function AdvisorMap({
   // dragStart:  screen-pixel position where the current drag began (or null).
   // dragging:   true while pointer is down and has exceeded the threshold.
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  // hasDragged: latches true the first time the user drags within a given view,
+  // and stays true until the view resets. Used to swap mapMarkers → allMarkers
+  // so adjacent-state advisors appear as soon as the user starts panning.
+  const [hasDragged, setHasDragged] = useState(false)
   const dragStart   = useRef(null)   // { screenX, screenY, offsetX, offsetY }
   const dragging    = useRef(false)  // exceeded threshold during this pointer-down
   const wasDragged  = useRef(false)  // used to suppress click on pointer-up
   const svgRef      = useRef(null)
 
-  // Reset drag offset whenever the fitted view changes (state / ZIP / cleared).
+  // Which marker set to render: once the user has dragged at all within a
+  // zoomed view, switch to allMarkers (no state boundary) so advisors in
+  // neighbouring states appear as the map pans. Falls back to mapMarkers when
+  // there's no stateFilter active (ZIP proximity or national view) since in
+  // those cases mapMarkers and allMarkers are already equivalent.
+  const activeMarkers = (hasDragged && stateFilter && allMarkers) ? allMarkers : mapMarkers
+
+  // Reset drag offset and hasDragged whenever the fitted view changes (state / ZIP / cleared).
   // We key on the serialised center + zoom so we only reset on real view changes.
   const viewKey = `${mapView.center[0]},${mapView.center[1]},${mapView.zoom}`
   const prevViewKey = useRef(viewKey)
   useEffect(() => {
     if (prevViewKey.current !== viewKey) {
       setDragOffset({ x: 0, y: 0 })
+      setHasDragged(false)
       prevViewKey.current = viewKey
     }
   }, [viewKey])
@@ -127,6 +139,7 @@ export default function AdvisorMap({
       if (Math.abs(dScreen.x) > DRAG_THRESHOLD || Math.abs(dScreen.y) > DRAG_THRESHOLD) {
         dragging.current   = true
         wasDragged.current = true
+        setHasDragged(true)
         hidePreview()
       } else {
         return
@@ -160,7 +173,7 @@ export default function AdvisorMap({
   // ── Jitter overlapping dots ───────────────────────────────────────────────
   const jitteredMarkers = useMemo(() => {
     const projected = []
-    for (const a of mapMarkers) {
+    for (const a of activeMarkers) {
       const p = projection([a.coords.lng, a.coords.lat])
       if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
       projected.push({ a, px: p[0], py: p[1] })
@@ -189,7 +202,7 @@ export default function AdvisorMap({
       })
     }
     return out
-  }, [mapMarkers, z])
+  }, [activeMarkers, z])
 
   return (
     <svg
