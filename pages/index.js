@@ -166,6 +166,29 @@ export default function DirectoryIndex({ advisors, stateList }) {
     return list
   }, [advisors, name, stateFilter, origin, radius])
 
+  // Full marker set for the map when the user is dragging — same filters as
+  // mapMarkers but WITHOUT the state constraint, so adjacent-state advisors
+  // appear as the user pans beyond the selected state's border. The results
+  // grid below still uses `filtered` (which respects stateFilter), so the list
+  // and the map can show different scopes without conflicting.
+  const allMarkers = useMemo(() => {
+    const q = name.trim().toLowerCase()
+    let list = advisors.filter(a => {
+      if (!a.coords) return false
+      if (q) {
+        const hay = `${a.name} ${a.company || ''} ${a.city || ''}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    if (origin) {
+      list = list
+        .map(a => ({ ...a, distance: milesBetween(origin, a.coords) }))
+        .filter(a => a.distance <= radius)
+    }
+    return list
+  }, [advisors, name, origin, radius])
+
   const passesDesignation = useCallback((a) => {
     if (designation === 'nssa')  return !!a.nssa
     if (designation === 'irmaa') return !!a.irmaa
@@ -350,6 +373,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     zoomNudge={zoomNudge}
                     mapZoomed={mapZoomed}
                     mapMarkers={mapMarkers}
+                    allMarkers={allMarkers}
                     passesDesignation={passesDesignation}
                     designation={designation}
                     stateFilter={stateFilter}
