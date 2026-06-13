@@ -171,38 +171,58 @@ export default function AdvisorMap({
   }, [mapView.center, zoom, dragOffset])
 
   // ── Jitter overlapping dots ───────────────────────────────────────────────
-  const jitteredMarkers = useMemo(() => {
-    const projected = []
-    for (const a of activeMarkers) {
-      const p = projection([a.coords.lng, a.coords.lat])
-      if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
-      projected.push({ a, px: p[0], py: p[1] })
-    }
-    const groups = new Map()
-    for (const m of projected) {
-      const key = `${Math.round(m.px)},${Math.round(m.py)}`
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key).push(m)
-    }
-    const out = []
-    const baseRadius = 7 / z
-    for (const members of groups.values()) {
-      if (members.length === 1) {
-        out.push({ a: members[0].a, x: members[0].px, y: members[0].py })
-        continue
+const jitteredMarkers = useMemo(() => {
+  const projected = []
+  for (const a of activeMarkers) {
+    const p = projection([a.coords.lng, a.coords.lat])
+    if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
+    projected.push({ a, px: p[0], py: p[1] })
+  }
+
+  // Group by proximity in SVG space — dots within CLUSTER_RADIUS of each
+  // other (before zoom scaling) are treated as a cluster and fanned out.
+  const CLUSTER_RADIUS = 6 / z   // SVG units; scales with zoom
+  const assigned = new Array(projected.length).fill(-1)
+  const groups = []
+
+  for (let i = 0; i < projected.length; i++) {
+    if (assigned[i] !== -1) continue
+    const group = [i]
+    for (let j = i + 1; j < projected.length; j++) {
+      if (assigned[j] !== -1) continue
+      const dx = projected[i].px - projected[j].px
+      const dy = projected[i].py - projected[j].py
+      if (Math.sqrt(dx * dx + dy * dy) < CLUSTER_RADIUS) {
+        group.push(j)
+        assigned[j] = groups.length
       }
-      const radius = baseRadius * (1 + Math.min(members.length, 8) * 0.12)
-      members.forEach((m, i) => {
-        const angle = (2 * Math.PI * i) / members.length - Math.PI / 2
-        out.push({
-          a: m.a,
-          x: m.px + radius * Math.cos(angle),
-          y: m.py + radius * Math.sin(angle),
-        })
-      })
     }
-    return out
-  }, [activeMarkers, z])
+    assigned[i] = groups.length
+    groups.push(group)
+  }
+
+  const out = []
+  const fanRadius = 8 / z
+  for (const group of groups) {
+    if (group.length === 1) {
+      const m = projected[group[0]]
+      out.push({ a: m.a, x: m.px, y: m.py })
+      continue
+    }
+    // Compute centroid of the group, fan dots out radially from it.
+    const cx = group.reduce((s, i) => s + projected[i].px, 0) / group.length
+    const cy = group.reduce((s, i) => s + projected[i].py, 0) / group.length
+    group.forEach((idx, i) => {
+      const angle = (2 * Math.PI * i) / group.length - Math.PI / 2
+      out.push({
+        a: projected[idx].a,
+        x: cx + fanRadius * Math.cos(angle),
+        y: cy + fanRadius * Math.sin(angle),
+      })
+    })
+  }
+  return out
+}, [activeMarkers, z])
 
   return (
     <svg
