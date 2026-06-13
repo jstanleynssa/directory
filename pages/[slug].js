@@ -153,7 +153,7 @@ export async function getStaticProps({ params }) {
 
   return {
     props: { member: JSON.parse(JSON.stringify(member)), slug: params.slug },
-    revalidate: 1, // rebuild at most once/day if using ISR
+    revalidate: 86400, // rebuild at most once/day if using ISR
   }
 }
 
