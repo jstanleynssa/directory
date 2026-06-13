@@ -171,58 +171,61 @@ export default function AdvisorMap({
   }, [mapView.center, zoom, dragOffset])
 
   // ── Jitter overlapping dots ───────────────────────────────────────────────
-const jitteredMarkers = useMemo(() => {
-  const projected = []
-  for (const a of activeMarkers) {
-    const p = projection([a.coords.lng, a.coords.lat])
-    if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
-    projected.push({ a, px: p[0], py: p[1] })
-  }
+  // Groups dots by proximity in SVG space (not exact pixel match), so advisors
+  // in nearby-but-distinct cities (e.g. Honolulu + Pearl City) still fan out
+  // when they visually overlap at the current zoom level.
+  const jitteredMarkers = useMemo(() => {
+    const projected = []
+    for (const a of activeMarkers) {
+      const p = projection([a.coords.lng, a.coords.lat])
+      if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
+      projected.push({ a, px: p[0], py: p[1] })
+    }
 
-  // Group by proximity in SVG space — dots within CLUSTER_RADIUS of each
-  // other (before zoom scaling) are treated as a cluster and fanned out.
-  const CLUSTER_RADIUS = 6 / z   // SVG units; scales with zoom
-  const assigned = new Array(projected.length).fill(-1)
-  const groups = []
+    // Cluster radius in SVG units — dots closer than this are fanned out.
+    // Dividing by z keeps the threshold consistent across zoom levels.
+    const CLUSTER_RADIUS = 6 / z
+    const assigned = new Array(projected.length).fill(-1)
+    const groups = []
 
-  for (let i = 0; i < projected.length; i++) {
-    if (assigned[i] !== -1) continue
-    const group = [i]
-    for (let j = i + 1; j < projected.length; j++) {
-      if (assigned[j] !== -1) continue
-      const dx = projected[i].px - projected[j].px
-      const dy = projected[i].py - projected[j].py
-      if (Math.sqrt(dx * dx + dy * dy) < CLUSTER_RADIUS) {
-        group.push(j)
-        assigned[j] = groups.length
+    for (let i = 0; i < projected.length; i++) {
+      if (assigned[i] !== -1) continue
+      const group = [i]
+      for (let j = i + 1; j < projected.length; j++) {
+        if (assigned[j] !== -1) continue
+        const dx = projected[i].px - projected[j].px
+        const dy = projected[i].py - projected[j].py
+        if (Math.sqrt(dx * dx + dy * dy) < CLUSTER_RADIUS) {
+          group.push(j)
+          assigned[j] = groups.length
+        }
       }
+      assigned[i] = groups.length
+      groups.push(group)
     }
-    assigned[i] = groups.length
-    groups.push(group)
-  }
 
-  const out = []
-  const fanRadius = 8 / z
-  for (const group of groups) {
-    if (group.length === 1) {
-      const m = projected[group[0]]
-      out.push({ a: m.a, x: m.px, y: m.py })
-      continue
-    }
-    // Compute centroid of the group, fan dots out radially from it.
-    const cx = group.reduce((s, i) => s + projected[i].px, 0) / group.length
-    const cy = group.reduce((s, i) => s + projected[i].py, 0) / group.length
-    group.forEach((idx, i) => {
-      const angle = (2 * Math.PI * i) / group.length - Math.PI / 2
-      out.push({
-        a: projected[idx].a,
-        x: cx + fanRadius * Math.cos(angle),
-        y: cy + fanRadius * Math.sin(angle),
+    const out = []
+    const fanRadius = 8 / z  // How far each dot fans from the centroid
+    for (const group of groups) {
+      if (group.length === 1) {
+        const m = projected[group[0]]
+        out.push({ a: m.a, x: m.px, y: m.py })
+        continue
+      }
+      // Compute centroid of the group, fan dots out radially from it.
+      const cx = group.reduce((s, i) => s + projected[i].px, 0) / group.length
+      const cy = group.reduce((s, i) => s + projected[i].py, 0) / group.length
+      group.forEach((idx, i) => {
+        const angle = (2 * Math.PI * i) / group.length - Math.PI / 2
+        out.push({
+          a: projected[idx].a,
+          x: cx + fanRadius * Math.cos(angle),
+          y: cy + fanRadius * Math.sin(angle),
+        })
       })
-    })
-  }
-  return out
-}, [activeMarkers, z])
+    }
+    return out
+  }, [activeMarkers, z])
 
   return (
     <svg
