@@ -181,7 +181,7 @@ export default function AdvisorMap({
       if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
       projected.push({ a, px: p[0], py: p[1] })
     }
-console.log('projected', projected.map(m => ({ name: m.a.name, px: m.px, py: m.py })))
+
     // Cluster radius in SVG units — dots closer than this are fanned out.
     // Dividing by z keeps the threshold consistent across zoom levels.
     const CLUSTER_RADIUS = 6 / z
