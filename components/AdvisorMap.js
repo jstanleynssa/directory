@@ -176,6 +176,7 @@ export default function AdvisorMap({
   // when they visually overlap at the current zoom level.
   const jitteredMarkers = useMemo(() => {
     const projected = []
+    
     for (const a of activeMarkers) {
       const p = projection([a.coords.lng, a.coords.lat])
       if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
@@ -184,7 +185,11 @@ export default function AdvisorMap({
 
     // Cluster radius in SVG units — dots closer than this are fanned out.
     // Dividing by z keeps the threshold consistent across zoom levels.
-    const CLUSTER_RADIUS = 6 / z
+    // Measured distance between Honolulu & Pearl City, HI: 6.94 SVG units at zoomed level.
+    // Using 4 / z to ensure they're always separated across all zoom levels.
+    const CLUSTER_RADIUS = 4 / z
+    console.log(`[Clustering] CLUSTER_RADIUS=${CLUSTER_RADIUS.toFixed(2)} SVG units (z=${z.toFixed(3)}, zoom=${zoom})`)
+    
     const assigned = new Array(projected.length).fill(-1)
     const groups = []
 
@@ -195,7 +200,9 @@ export default function AdvisorMap({
         if (assigned[j] !== -1) continue
         const dx = projected[i].px - projected[j].px
         const dy = projected[i].py - projected[j].py
-        if (Math.sqrt(dx * dx + dy * dy) < CLUSTER_RADIUS) {
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        
+        if (distance < CLUSTER_RADIUS) {
           group.push(j)
           assigned[j] = groups.length
         }
@@ -212,9 +219,11 @@ export default function AdvisorMap({
         out.push({ a: m.a, x: m.px, y: m.py })
         continue
       }
+      
       // Compute centroid of the group, fan dots out radially from it.
       const cx = group.reduce((s, i) => s + projected[i].px, 0) / group.length
       const cy = group.reduce((s, i) => s + projected[i].py, 0) / group.length
+      
       group.forEach((idx, i) => {
         const angle = (2 * Math.PI * i) / group.length - Math.PI / 2
         out.push({
