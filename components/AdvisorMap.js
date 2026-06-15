@@ -185,11 +185,14 @@ export default function AdvisorMap({
     
     // Debug: always log projection stats
     console.log(`[PROJECTION] Total projected markers: ${projected.length}`)
-    const hiCount = projected.filter(m => {
+    const hiAdvisors = projected.filter(m => {
       const a = m.a
       return a.coords.lat > 18 && a.coords.lat < 23 && a.coords.lng < -155 && a.coords.lng > -161
-    }).length
-    console.log(`[HAWAII] Found ${hiCount} advisors in Hawaii region`)
+    })
+    console.log(`[HAWAII] Found ${hiAdvisors.length} advisors in Hawaii region`)
+    hiAdvisors.forEach((m, idx) => {
+      console.log(`  [HI-${idx}] ${m.a.name || m.a.slug} @ (${m.a.coords.lat.toFixed(4)}, ${m.a.coords.lng.toFixed(4)}) → SVG (${m.px.toFixed(0)}, ${m.py.toFixed(0)})`)
+    })
     
     // Log first 5 and last 5 advisors
     console.log('[SAMPLE ADVISORS]', projected.slice(0, 5).map(m => ({
@@ -242,6 +245,10 @@ export default function AdvisorMap({
     for (const group of groups) {
       if (group.length === 1) {
         const m = projected[group[0]]
+        // Debug: log Hawaii markers
+        if (m.a.coords.lat > 18 && m.a.coords.lat < 23 && m.a.coords.lng < -155 && m.a.coords.lng > -161) {
+          console.log(`[HI OUTPUT] ${m.a.name || m.a.slug}: NSSA=${m.a.nssa}, IRMAA=${m.a.irmaa}`)
+        }
         out.push({ a: m.a, x: m.px, y: m.py })
         continue
       }
@@ -317,6 +324,10 @@ export default function AdvisorMap({
         {/* Advisor dots */}
         {jitteredMarkers.map(({ a, x, y }) => {
           const visible = passesDesignation(a)
+          // Debug: log Hawaii markers
+          if (a.coords.lat > 18 && a.coords.lat < 23 && a.coords.lng < -155 && a.coords.lng > -161) {
+            console.log(`[HI RENDER] ${a.name || a.slug}: visible=${visible}, designation=${designation}`)
+          }
           return (
             <circle
               key={a.slug}
