@@ -202,12 +202,14 @@ export default function AdvisorMap({
         const dy = projected[i].py - projected[j].py
         const distance = Math.sqrt(dx * dx + dy * dy)
         
-        // Debug: Log HI advisor distances
-        const iName = projected[i].a.name || projected[i].a.slug
-        const jName = projected[j].a.name || projected[j].a.slug
-        if ((iName.includes('Owen') || iName.includes('Wayne')) && 
-            (jName.includes('Owen') || jName.includes('Wayne'))) {
-          console.log(`[HI CLUSTERING CHECK] ${iName} vs ${jName}: ${distance.toFixed(2)} vs RADIUS ${CLUSTER_RADIUS.toFixed(2)} → ${distance < CLUSTER_RADIUS ? 'CLUSTERED' : 'SEPARATE'}`)
+        // Debug: Log Hawaii advisors
+        const iInHI = projected[i].a.coords.lat > 18 && projected[i].a.coords.lat < 23 && projected[i].a.coords.lng < -155 && projected[i].a.coords.lng > -161
+        const jInHI = projected[j].a.coords.lat > 18 && projected[j].a.coords.lat < 23 && projected[j].a.coords.lng < -155 && projected[j].a.coords.lng > -161
+        
+        if (iInHI && jInHI) {
+          console.log(
+            `[HI PAIR] ${projected[i].a.name} vs ${projected[j].a.name}: distance=${distance.toFixed(3)}, threshold=${CLUSTER_RADIUS.toFixed(3)} → ${distance < CLUSTER_RADIUS ? 'CLUSTER' : 'SEPARATE'}`
+          )
         }
         
         if (distance < CLUSTER_RADIUS) {
