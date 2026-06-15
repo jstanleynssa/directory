@@ -182,6 +182,22 @@ export default function AdvisorMap({
       if (!p || !isFinite(p[0]) || !isFinite(p[1])) continue
       projected.push({ a, px: p[0], py: p[1] })
     }
+    
+    // Debug: count HI advisors
+    const hiCount = projected.filter(m => {
+      const a = m.a
+      return a.coords.lat > 18 && a.coords.lat < 23 && a.coords.lng < -155 && a.coords.lng > -161
+    }).length
+    if (hiCount > 0) {
+      console.log(`[HI ADVISORS] Found ${hiCount} advisors in Hawaii`)
+      projected.forEach((m, idx) => {
+        const a = m.a
+        const inHI = a.coords.lat > 18 && a.coords.lat < 23 && a.coords.lng < -155 && a.coords.lng > -161
+        if (inHI) {
+          console.log(`  [${idx}] ${a.name || a.slug || 'unnamed'} @ (${a.coords.lat.toFixed(4)}, ${a.coords.lng.toFixed(4)}) → SVG (${m.px.toFixed(2)}, ${m.py.toFixed(2)})`)
+        }
+      })
+    }
 
     // Cluster radius in SVG units — dots closer than this are fanned out.
     // Dividing by z keeps the threshold consistent across zoom levels.
