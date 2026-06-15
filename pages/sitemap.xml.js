@@ -27,7 +27,7 @@ async function fetchDirectoryMembers() {
   while (true) {
     const { data, error } = await supabase
       .from('members')
-      .select('email, first_name, last_name, city, state, nssa_certified, irmaa_certified, bio, is_active')
+      .select('email, first_name, last_name, city, state, nssa_certified, irmaa_certified, bio, is_active, directory_opt_out')
       .or('nssa_certified.eq.true,irmaa_certified.eq.true')
       .order('last_name', { ascending: true })
       .range(from, from + 999)
@@ -37,8 +37,10 @@ async function fetchDirectoryMembers() {
     if (data.length < 1000) break
     from += 1000
   }
+  // Inclusion gate — must stay identical to [slug].js / index.js / badge.js.
   return all.filter(m => {
     if (m.is_active === false) return false
+    if (m.directory_opt_out === true) return false
     const bioText = (m.bio || '').replace(/<[^>]*>/g, '').trim()
     return bioText.length > 0
   })

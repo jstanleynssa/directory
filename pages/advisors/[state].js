@@ -108,7 +108,7 @@ export default function StatePage({ stateNameProp, stateCodeProp, advisors, citi
                 ['About Us', `${ROOT}/about`],
                 ['Social Security Training', NSSA_COURSE],
                 ['IRMAA Medicare Training', IRMAA_COURSE],
-                ['Find an Advisor', `${ROOT}/find-nssa`],
+                ['Find an Advisor', `${SITE}/`],
                 ['Contact Us', `${ROOT}/contact`],
               ].map(([label, href]) => (
                 <a key={label} href={href} style={{ color: GRAY.dark, textDecoration: 'none' }}>{label}</a>
