@@ -167,6 +167,7 @@ export default function AdvisorMap({
     const py = (c && isFinite(c[1])) ? c[1] : MAP_H / 2
     const tx = MAP_W / 2 - px * zoom + dragOffset.x * zoom
     const ty = MAP_H / 2 - py * zoom + dragOffset.y * zoom
+    console.log(`[TRANSFORM] center=(${c ? c[0].toFixed(0) : 'null'}, ${c ? c[1].toFixed(0) : 'null'}), zoom=${zoom.toFixed(2)}, translate=(${tx.toFixed(0)}, ${ty.toFixed(0)}), SVG viewBox=0 0 ${MAP_W} ${MAP_H}`)
     return `translate(${tx} ${ty}) scale(${zoom})`
   }, [mapView.center, zoom, dragOffset])
 
