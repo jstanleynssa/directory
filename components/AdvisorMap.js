@@ -325,9 +325,11 @@ export default function AdvisorMap({
         {/* Advisor dots */}
         {jitteredMarkers.map(({ a, x, y }) => {
           const visible = passesDesignation(a)
+          const radius = (mapZoomed ? 5 : 4) / z
+          const color = dotColor(a, designation)
           // Debug: log Hawaii markers
           if (a.coords.lat > 18 && a.coords.lat < 23 && a.coords.lng < -155 && a.coords.lng > -161) {
-            console.log(`[HI RENDER] ${a.name || a.slug}: visible=${visible}, designation=${designation}`)
+            console.log(`[HI RENDER] ${a.name || a.slug}: visible=${visible}, x=${x.toFixed(1)}, y=${y.toFixed(1)}, r=${radius.toFixed(2)}, color=${color}, mapZoomed=${mapZoomed}, opacity=${visible ? 0.85 : 0}`)
           }
           return (
             <circle
@@ -335,8 +337,8 @@ export default function AdvisorMap({
               className="map-marker"
               cx={x}
               cy={y}
-              r={(mapZoomed ? 5 : 4) / z}
-              fill={dotColor(a, designation)}
+              r={radius}
+              fill={color}
               stroke="white"
               strokeWidth={1.2 / z}
               style={{
