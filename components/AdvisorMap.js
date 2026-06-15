@@ -202,6 +202,14 @@ export default function AdvisorMap({
         const dy = projected[i].py - projected[j].py
         const distance = Math.sqrt(dx * dx + dy * dy)
         
+        // Debug: Log HI advisor distances
+        const iName = projected[i].a.name || projected[i].a.slug
+        const jName = projected[j].a.name || projected[j].a.slug
+        if ((iName.includes('Owen') || iName.includes('Wayne')) && 
+            (jName.includes('Owen') || jName.includes('Wayne'))) {
+          console.log(`[HI CLUSTERING CHECK] ${iName} vs ${jName}: ${distance.toFixed(2)} vs RADIUS ${CLUSTER_RADIUS.toFixed(2)} → ${distance < CLUSTER_RADIUS ? 'CLUSTERED' : 'SEPARATE'}`)
+        }
+        
         if (distance < CLUSTER_RADIUS) {
           group.push(j)
           assigned[j] = groups.length
