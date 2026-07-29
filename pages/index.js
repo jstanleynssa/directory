@@ -88,7 +88,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const hidePreview = useCallback(() => {
     setDismissing(true)
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
-    dismissTimer.current = setTimeout(() => { setHovered(null); setDismissing(false); dismissTimer.current = null }, 160)
+    dismissTimer.current = setTimeout(() => { setHovered(null); setDismissing(false); dismissTimer.current = null }, 300)
   }, [])
 
   // Resolve the visitor's zip via the lightweight API (keeps the big dataset server-side).
@@ -413,13 +413,18 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     <a
                       href={`/${hovered.advisor.slug}`}
                       className={dismissing ? 'advisor-pop-out' : 'advisor-pop'}
+                      onMouseEnter={() => {
+                        if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null }
+                        setDismissing(false)
+                      }}
+                      onMouseLeave={hidePreview}
                       style={{
                         position: 'absolute', left: hovered.x + 14, top: hovered.y - 10,
                         zIndex: 5, background: 'white', textDecoration: 'none', color: 'inherit',
                         border: `1px solid ${GRAY.border}`, borderRadius: '10px',
                         boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: '10px 12px',
-                        width: '240px', maxWidth: 'calc(100% - 20px)', pointerEvents: 'none',
-                        display: 'block', transformOrigin: 'top left',
+                        width: '240px', maxWidth: 'calc(100% - 20px)',
+                        display: 'block', transformOrigin: 'top left', cursor: 'pointer',
                         ...(hovered.x > 700 ? { transform: 'translateX(calc(-100% - 28px))' } : null),
                       }}
                     >
@@ -431,7 +436,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                           <div style={{ fontFamily: '"Poppins", system-ui, sans-serif', fontWeight: 700, fontSize: '14px', color: GRAY.dark, lineHeight: 1.2 }}>{hovered.advisor.name}</div>
                           {hovered.advisor.title && <div style={{ fontSize: '12px', color: GRAY.text, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hovered.advisor.title}</div>}
                           {(hovered.advisor.city || hovered.advisor.stateCode) && <div style={{ fontSize: '12px', color: GRAY.text }}>{[hovered.advisor.city, hovered.advisor.stateCode].filter(Boolean).join(', ')}</div>}
-                          <div style={{ fontSize: '11px', color: NSSA.medium, marginTop: '4px', fontWeight: 600 }}>View profile →</div>
+                          <div style={{ fontSize: '11px', color: NSSA.medium, marginTop: '6px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>View profile <span style={{ fontSize: '13px' }}>→</span></div>
                         </div>
                       </div>
                     </a>
