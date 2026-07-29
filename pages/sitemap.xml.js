@@ -19,7 +19,7 @@ function admin() {
   )
 }
 
-// Same gate as the profile pages: certified + active + non-empty bio.
+// Same gate as the profile pages: certified + active + non-empty bio + not opted out + not admin-excluded.
 async function fetchDirectoryMembers() {
   const supabase = admin()
   let all = []
@@ -27,7 +27,7 @@ async function fetchDirectoryMembers() {
   while (true) {
     const { data, error } = await supabase
       .from('members')
-      .select('email, first_name, last_name, city, state, nssa_certified, irmaa_certified, bio, is_active')
+      .select('email, first_name, last_name, city, state, nssa_certified, irmaa_certified, bio, is_active, directory_opt_out, admin_directory_exclude')
       .or('nssa_certified.eq.true,irmaa_certified.eq.true')
       .order('last_name', { ascending: true })
       .range(from, from + 999)
@@ -39,6 +39,8 @@ async function fetchDirectoryMembers() {
   }
   return all.filter(m => {
     if (m.is_active === false) return false
+    if (m.directory_opt_out === true) return false
+    if (m.admin_directory_exclude === true) return false
     const bioText = (m.bio || '').replace(/<[^>]*>/g, '').trim()
     return bioText.length > 0
   })
