@@ -98,12 +98,12 @@ export default function DirectoryIndex({ advisors, stateList }) {
     setZipLoading(true); setZipError('')
     try {
       const r = await fetch(`/api/zip?z=${encodeURIComponent(z)}`)
-      if (!r.ok) { setOrigin(null); setZipError('ZIP not found'); return }
+      if (!r.ok) { setOrigin(null); setZipError('Location not found — try a ZIP or "City, ST"'); return }
       const c = await r.json()
       setStateFilter('')   // proximity is national; clear any state filter so results aren't double-constrained
       setOrigin(c)
     } catch {
-      setOrigin(null); setZipError('Could not look up ZIP')
+      setOrigin(null); setZipError('Could not look up location')
     } finally {
       setZipLoading(false)
     }
@@ -225,7 +225,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
     <>
       <Head>
         <title>Find an NSSA® or IRMAACP™ Certified Advisor Near You | NSSA® Directory</title>
-        <meta name="description" content="Search the national directory of NSSA® and IRMAACP™ certified advisors. Find a Social Security and Medicare planning professional by name, state, or proximity to your ZIP code." />
+        <meta name="description" content="Search the national directory of NSSA® and IRMAACP™ certified advisors. Find a Social Security and Medicare planning professional by name, state, or proximity to your ZIP code or city." />
         <link rel="canonical" href={SITE + '/'} />
         <meta property="og:title" content="Find an NSSA® or IRMAACP™ Certified Advisor" />
         <meta property="og:description" content="Search the national directory of certified Social Security and Medicare planning advisors." />
@@ -285,7 +285,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
             </h1>
             <p style={{ fontSize: '16px', color: GRAY.text, maxWidth: '760px', marginTop: '0.75rem', lineHeight: 1.6 }}>
               Search our national directory of NSSA® and IRMAACP™ certified professionals.<br />
-              Filter by name, state, designation, or distance from your ZIP code.
+              Filter by name, state, designation, or distance from a ZIP code or city.
             </p>
           </div>
         </section>
@@ -349,16 +349,15 @@ export default function DirectoryIndex({ advisors, stateList }) {
                 </div>
 
                 <div style={{ marginBottom: '1rem' }}>
-                  <label className="filter-label">Near my ZIP code</label>
+                  <label className="filter-label">Near a ZIP or city</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       className="filter-input"
                       value={zip}
                       onChange={e => setZip(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') applyZip() }}
-                      placeholder="ZIP"
-                      inputMode="numeric"
-                      style={{ flex: '0 0 90px' }}
+                      placeholder="ZIP or city"
+                      style={{ flex: '0 0 120px' }}
                     />
                     <select className="filter-input" value={radius} onChange={e => setRadius(Number(e.target.value))} style={{ flex: 1 }}>
                       {RADIUS_OPTIONS.map(r => <option key={r} value={r}>{r} miles</option>)}
@@ -370,7 +369,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     >{zipLoading ? '…' : 'Go'}</button>
                   </div>
                   {zipError && <p style={{ color: IRMAA.medium, fontSize: '13px', margin: '6px 0 0' }}>{zipError}</p>}
-                  {origin && <button onClick={clearProximity} style={{ background: 'none', border: 'none', color: NSSA.medium, fontSize: '13px', cursor: 'pointer', padding: '6px 0 0', textDecoration: 'underline' }}>Clear ZIP filter</button>}
+                  {origin && <button onClick={clearProximity} style={{ background: 'none', border: 'none', color: NSSA.medium, fontSize: '13px', cursor: 'pointer', padding: '6px 0 0', textDecoration: 'underline' }}>Clear location filter</button>}
                 </div>
               </div>
 
