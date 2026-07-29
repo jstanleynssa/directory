@@ -11,7 +11,6 @@
 
 import Head from 'next/head'
 import dynamic from 'next/dynamic'
-import { useRouter } from 'next/router'
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { buildSlugIndex, stateToken } from '../lib/slug'
@@ -66,11 +65,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
   const [zipError, setZipError] = useState('')
   const [zipLoading, setZipLoading] = useState(false)
   const [hovered, setHovered] = useState(null) // advisor under cursor (when map is zoomed)
-  const [dismissing, setDismissing] = useState(false) // drives the fade-out animation
+  const [popState, setPopState] = useState('in') // 'in' | 'out' | 'steady'
   const [zoomNudge, setZoomNudge] = useState(1) // user zoom-control multiplier on top of mapView.zoom
   const dismissTimer = useRef(null)
-  const router = useRouter()
-
   // The map is "zoomed/interactive" when a state is selected OR a ZIP origin is set.
   const mapZoomed = !!(stateFilter || origin)
 
@@ -80,15 +77,21 @@ export default function DirectoryIndex({ advisors, stateList }) {
   // Show the hover badge, cancelling any pending fade-out.
   const showPreview = useCallback((advisor, x, y) => {
     if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null }
-    setDismissing(false)
+    setPopState('in')
     setHovered({ advisor, x, y })
   }, [])
 
   // Begin fade-out, then clear after the animation completes.
   const hidePreview = useCallback(() => {
-    setDismissing(true)
+    setPopState('out')
     if (dismissTimer.current) clearTimeout(dismissTimer.current)
-    dismissTimer.current = setTimeout(() => { setHovered(null); setDismissing(false); dismissTimer.current = null }, 300)
+    dismissTimer.current = setTimeout(() => { setHovered(null); setPopState('in'); dismissTimer.current = null }, 300)
+  }, [])
+
+  // Mouse entered the popup card: freeze it in place without replaying the pop animation.
+  const stabilizePreview = useCallback(() => {
+    if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null }
+    setPopState('steady')
   }, [])
 
   // Resolve the visitor's zip via the lightweight API (keeps the big dataset server-side).
@@ -390,7 +393,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
                     setHovered={setHovered}
                     showPreview={showPreview}
                     hidePreview={hidePreview}
-                    onMarkerClick={(a) => router.push(`/${a.slug}`)}
+                    onMarkerClick={(a) => { if (a.slug) window.location.href = `/${a.slug}` }}
                   />
 
                   {/* Zoom controls */}
@@ -412,11 +415,8 @@ export default function DirectoryIndex({ advisors, stateList }) {
                   {hovered && hovered.advisor && (
                     <a
                       href={`/${hovered.advisor.slug}`}
-                      className={dismissing ? 'advisor-pop-out' : 'advisor-pop'}
-                      onMouseEnter={() => {
-                        if (dismissTimer.current) { clearTimeout(dismissTimer.current); dismissTimer.current = null }
-                        setDismissing(false)
-                      }}
+                      className={popState === 'out' ? 'advisor-pop-out' : popState === 'in' ? 'advisor-pop' : ''}
+                      onMouseEnter={stabilizePreview}
                       onMouseLeave={hidePreview}
                       style={{
                         position: 'absolute', left: hovered.x + 14, top: hovered.y - 10,
@@ -425,7 +425,9 @@ export default function DirectoryIndex({ advisors, stateList }) {
                         boxShadow: '0 8px 24px rgba(0,0,0,0.14)', padding: '10px 12px',
                         width: '240px', maxWidth: 'calc(100% - 20px)',
                         display: 'block', transformOrigin: 'top left', cursor: 'pointer',
-                        ...(hovered.x > 700 ? { transform: 'translateX(calc(-100% - 28px))' } : null),
+                        // 'steady' = card frozen in place, no animation
+                        ...(popState === 'steady' ? { opacity: 1, transform: 'scale(1) translateY(0)' } : null),
+                        ...(hovered.x > 700 ? { transform: (popState === 'steady' ? 'scale(1) translateY(0) ' : '') + 'translateX(calc(-100% - 28px))' } : null),
                       }}
                     >
                       <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
