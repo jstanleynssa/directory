@@ -122,7 +122,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
       if (designation === 'irmaa' && !a.irmaa) return false
       if (designation === 'both'  && !(a.nssa && a.irmaa)) return false
       if (q) {
-        const hay = `${a.name} ${a.company || ''} ${a.city || ''}`.toLowerCase()
+        const hay = `${a.name} ${a.company || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -153,7 +153,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
       if (!a.coords) return false
       if (stateFilter && a.stateCode !== stateFilter) return false
       if (q) {
-        const hay = `${a.name} ${a.company || ''} ${a.city || ''}`.toLowerCase()
+        const hay = `${a.name} ${a.company || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -176,7 +176,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
     let list = advisors.filter(a => {
       if (!a.coords) return false
       if (q) {
-        const hay = `${a.name} ${a.company || ''} ${a.city || ''}`.toLowerCase()
+        const hay = `${a.name} ${a.company || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -300,8 +300,8 @@ export default function DirectoryIndex({ advisors, stateList }) {
               {/* Filters */}
               <div>
                 <div style={{ marginBottom: '1.25rem' }}>
-                  <label className="filter-label">Search by name, company, or city</label>
-                  <input className="filter-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cheney, or Boston" />
+                  <label className="filter-label">Search by name or company</label>
+                  <input className="filter-input" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Cheney or Ameriprise" />
                 </div>
 
                 <div style={{ marginBottom: '1.25rem' }}>
