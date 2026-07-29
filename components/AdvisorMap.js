@@ -347,8 +347,8 @@ export default function AdvisorMap({
                 pointerEvents: visible && mapZoomed ? 'auto' : 'none',
                 cursor: mapZoomed ? (dragging.current ? 'grabbing' : 'pointer') : 'default',
               }}
-              onClick={visible && mapZoomed && !wasDragged.current
-                ? () => onMarkerClick(a)
+              onClick={visible && mapZoomed
+                ? () => { if (!wasDragged.current) onMarkerClick(a) }
                 : undefined}
               onMouseEnter={visible && mapZoomed ? (e) => {
                 if (dragging.current) return
