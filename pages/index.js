@@ -122,7 +122,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
       if (designation === 'irmaa' && !a.irmaa) return false
       if (designation === 'both'  && !(a.nssa && a.irmaa)) return false
       if (q) {
-        const hay = `${a.name} ${a.company || ''}`.toLowerCase()
+        const hay = `${a.name} ${a.title || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -153,7 +153,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
       if (!a.coords) return false
       if (stateFilter && a.stateCode !== stateFilter) return false
       if (q) {
-        const hay = `${a.name} ${a.company || ''}`.toLowerCase()
+        const hay = `${a.name} ${a.title || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
@@ -176,7 +176,7 @@ export default function DirectoryIndex({ advisors, stateList }) {
     let list = advisors.filter(a => {
       if (!a.coords) return false
       if (q) {
-        const hay = `${a.name} ${a.company || ''}`.toLowerCase()
+        const hay = `${a.name} ${a.title || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
