@@ -12,12 +12,12 @@ const NSSA  = { light: '#8ECAEE', medium: '#1C80BC', dark: '#13405E' }
 const IRMAA = { light: '#ED8E8E', medium: '#DE5B63', dark: '#AF2A35' }
 const GRAY  = { text: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb', dark: '#1f2937' }
 const TAN    = '#b3a584'
-const SITE   = 'https://directory.nssapros.com'
-const ROOT   = 'https://nssapros.com'
+const SITE   = 'https://arpinstitute.com/find-an-advisor'
+const ROOT   = 'https://arpinstitute.com'
 
 // Product/training pages we want to pass internal link equity to.
-const NSSA_COURSE  = 'https://www.nssapros.com/social-security-training'
-const IRMAA_COURSE = 'https://www.nssapros.com/irmaa-medicare-training-course'
+const NSSA_COURSE  = 'https://arpinstitute.com/credentials/nssa'
+const IRMAA_COURSE = 'https://arpinstitute.com/credentials/irmaacp'
 
 // Varied anchor phrasings per cert (avoids identical anchors across ~700 pages).
 const NSSA_ANCHORS = [
@@ -112,7 +112,7 @@ async function fetchDirectoryMembers() {
   while (true) {
     const { data, error } = await supabase
       .from('members')
-      .select('id, email, first_name, last_name, job_title, company, address, city, state, zip, phone, mobile_phone, website, linkedin_url, bio, profile_photo, nssa_certified, irmaa_certified, nssa_number, irmaa_number, directory_page_title, directory_h1, is_active, directory_opt_out, admin_directory_exclude')
+      .select('id, email, first_name, last_name, job_title, company, address, city, state, zip, phone, mobile_phone, website, linkedin_url, bio, profile_photo, nssa_certified, irmaa_certified, nssa_number, irmaa_number, directory_page_title, directory_h1, is_active, directory_opt_out, admin_directory_exclude, financial_disclosure')
       .or('nssa_certified.eq.true,irmaa_certified.eq.true')
       .order('last_name', { ascending: true })
       .range(from, from + 999)
@@ -309,7 +309,8 @@ export default function AdvisorProfile({ member, slug }) {
   const roleLine = buildRoleLine()
 
   // H1 — e.g. "Joy Cheney, Social Security Planning Specialist"
-  const h1 = `${name}, ${roleLine}`
+  // Honor an explicit per-advisor override stored in directory_h1 (set via admin/DB).
+  const h1 = (member.directory_h1 || '').trim() || `${name}, ${roleLine}`
 
   // ── Breadcrumb: United States > State > Advisor ─────────────────────────
   // State links to the (future) state landing page /advisors/<state-slug>.
@@ -507,7 +508,7 @@ export default function AdvisorProfile({ member, slug }) {
         {/* Top nav — mirrors the Kajabi site so the page feels continuous */}
         <header style={{ background: 'white', borderBottom: `1px solid ${GRAY.border}`, padding: '1rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <a href={ROOT}><img src="/nssa-logo.png" alt="National Social Security Advisors" style={{ height: '44px', width: 'auto' }} /></a>
+            <a href={ROOT}><img src="/directory/nssa-logo.png" alt="National Social Security Advisors" style={{ height: '44px', width: 'auto' }} /></a>
             <nav className="site-nav" style={{ display: 'flex', gap: '26px', alignItems: 'center', fontSize: '15px' }}>
               {[
                 ['About Us', `${ROOT}/about`],
@@ -571,8 +572,8 @@ export default function AdvisorProfile({ member, slug }) {
 
                 {/* Cert badges — linked to the relevant training pages */}
                 <div style={{ display: 'flex', gap: '14px', marginLeft: '-4px' }}>
-                  {hasNssa && <a href={NSSA_COURSE} aria-label="NSSA® Social Security training"><img src="/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
-                  {hasIrmaa && <a href={IRMAA_COURSE} aria-label="IRMAACP™ Medicare training"><img src="/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
+                  {hasNssa && <a href={NSSA_COURSE} aria-label="NSSA® Social Security training"><img src="/directory/nssa-certificate-badge.png" alt={`NSSA® Certified${member.nssa_number ? ` #${member.nssa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
+                  {hasIrmaa && <a href={IRMAA_COURSE} aria-label="IRMAACP™ Medicare training"><img src="/directory/irmaa-certificate-badge.png" alt={`IRMAACP™ Certified${member.irmaa_number ? ` #${member.irmaa_number}` : ''}`} width="92" height="92" loading="lazy" style={{ height: '92px', width: 'auto', display: 'block' }} /></a>}
                 </div>
               </div>
 
@@ -616,6 +617,14 @@ export default function AdvisorProfile({ member, slug }) {
               ))}
               {/* Fallback: if there were no paragraphs, still show the credibility line */}
               {credLine && paragraphs.length === 0 ? credLine : null}
+
+              {/* Financial / compliance disclosure */}
+              {(member.financial_disclosure || '').trim() && (
+                <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: `1px solid ${GRAY.border}` }}>
+                  <h3 style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: GRAY.text, marginBottom: '10px' }}>Disclosure</h3>
+                  <p style={{ fontSize: '13px', color: GRAY.text, lineHeight: 1.65, margin: 0 }}>{member.financial_disclosure.trim()}</p>
+                </div>
+              )}
             </div>
 
             <ContactForm advisorName={name} advisorEmail={member.email} slug={slug} />
@@ -631,9 +640,9 @@ export default function AdvisorProfile({ member, slug }) {
             </p>
             <div className="valueprop-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2.5rem' }}>
               {[
-                ['/social-security-mistakes.png', 'Avoid Costly Social Security Claiming Mistakes', 'Navigating Social Security rules can be complex, and even small mistakes can cost you thousands of dollars in lost benefits. An NSSA® Certified Advisor ensures you make informed decisions and avoid costly errors.'],
-                ['/holistic-financial-planning.png', 'Holistic Retirement Planning', 'An NSSA® Advisor integrates your Social Security strategy with your overall retirement plan, ensuring your assets work together to meet your financial goals and a clearer path to a secure future.'],
-                ['/social-security-guidance.png', 'Guidance You Won\u2019t Get from the Social Security Office', 'The Social Security office provides information but doesn\u2019t offer personalized advice or strategies. An NSSA® Certified Advisor delivers tailored solutions based on your unique circumstances and goals.'],
+                ['/directory/social-security-mistakes.png', 'Avoid Costly Social Security Claiming Mistakes', 'Navigating Social Security rules can be complex, and even small mistakes can cost you thousands of dollars in lost benefits. An NSSA® Certified Advisor ensures you make informed decisions and avoid costly errors.'],
+                ['/directory/holistic-financial-planning.png', 'Holistic Retirement Planning', 'An NSSA® Advisor integrates your Social Security strategy with your overall retirement plan, ensuring your assets work together to meet your financial goals and a clearer path to a secure future.'],
+                ['/directory/social-security-guidance.png', 'Guidance You Won\u2019t Get from the Social Security Office', 'The Social Security office provides information but doesn\u2019t offer personalized advice or strategies. An NSSA® Certified Advisor delivers tailored solutions based on your unique circumstances and goals.'],
               ].map(([icon, title, body]) => (
                 <div key={title}>
                   <img src={icon} alt="" width="72" height="72" loading="lazy" style={{ width: '72px', height: '72px', objectFit: 'contain', display: 'block', margin: '0 auto 1.25rem' }} />
@@ -648,7 +657,7 @@ export default function AdvisorProfile({ member, slug }) {
         {/* Footer */}
         <footer style={{ background: '#6b5e3d', borderTop: `10px solid ${TAN}`, padding: '1.75rem 2rem' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '2rem', flexWrap: 'wrap' }}>
-            <a href={ROOT}><img src="/nssa-logo-white.png" alt="NSSA" style={{ height: '40px', width: 'auto' }} /></a>
+            <a href={ROOT}><img src="/directory/nssa-logo-white.png" alt="NSSA" style={{ height: '40px', width: 'auto' }} /></a>
             <span style={{ color: 'white', fontSize: '14px' }}>
               © {new Date().getFullYear()} Social Security Professionals, LLC · 1763 Columbia Road NW Ste 175 Washington, DC 20009
             </span>
